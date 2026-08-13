@@ -1,0 +1,227 @@
+# ============================================================
+# 模型注册表 — Mosaic 离线后端元数据
+# 所有后端使用 Mosaic 框架的离线方法，无需在线 API 调用
+# ============================================================
+
+# ── 服务类型 → 配置读取路径映射 ──
+defaults:
+  config_paths:
+    tts: "models.tts_backend"
+    lipsync: "models.lip_sync_backend"
+    llm: "llm.backend"
+    music: "models.music_backend"
+    image: "models.image_backend"
+    video: "models.video_backend"
+    training: "training.backend"
+
+# ══════════════════════════════════════════════════════════
+#  TTS 后端
+# ══════════════════════════════════════════════════════════
+
+tts_backends:
+  mosaic:
+    module: "api.backends.tts.mosaic_tts"
+    priority: 10
+    description: "Mosaic 离线 TTS（edge-tts / transformers）"
+    requires_api_key: false
+    health_check:
+      type: "import"
+      module: "mosaic"
+
+# ══════════════════════════════════════════════════════════
+#  口型同步后端
+# ══════════════════════════════════════════════════════════
+
+lipsync_backends:
+  mosaic:
+    module: "api.backends.lipsync.mosaic_lipsync"
+    priority: 10
+    description: "Mosaic 离线口型同步（Wav2Lip/SadTalker）"
+    requires_api_key: false
+    health_check:
+      type: "import"
+      module: "mosaic"
+
+# ══════════════════════════════════════════════════════════
+#  LLM 后端
+# ══════════════════════════════════════════════════════════
+
+llm_backends:
+  mosaic:
+    module: "api.backends.llm.mosaic_llm"
+    priority: 10
+    description: "Mosaic 离线 LLM 推理（HuggingFace 本地模型）"
+    requires_api_key: false
+    health_check:
+      type: "import"
+      module: "mosaic"
+
+# ══════════════════════════════════════════════════════════
+#  配乐后端
+# ══════════════════════════════════════════════════════════
+
+music_backends:
+  mosaic:
+    module: "api.backends.music.mosaic_music"
+    priority: 10
+    description: "Mosaic 离线音乐生成（MusicGen）"
+    requires_api_key: false
+    health_check:
+      type: "import"
+      module: "mosaic"
+
+# ══════════════════════════════════════════════════════════
+#  图像后端
+# ══════════════════════════════════════════════════════════
+
+# ══════════════════════════════════════════════════════════
+#  训练后端
+# ══════════════════════════════════════════════════════════
+
+training_backends:
+  mosaic:
+    module: "api.backends.training.mosaic_training"
+    priority: 10
+    description: "Mosaic 离线 LoRA 训练（diffusers + peft）"
+    requires_api_key: false
+    health_check:
+      type: "import"
+      module: "mosaic"
+
+image_backends:
+  flux:
+    module: "api.backends.image.mosaic_image"
+    priority: 10
+    workflow: "01_first_frame_flux.json"
+    prompt_style: "natural"
+    consistency_default: "pulid_flux"
+    consistency_pipeline: "flux_identity"
+    negative_prompt: "ugly, deformed, blurry, text, watermark, logo, signature, subtitle, caption, text overlay, speech bubble, comic text, numbers in corner, date stamp, border, frame"
+    default_params:
+      width: 1024
+      height: 576
+      steps: 28
+      cfg_scale: 3.5
+
+  sd15:
+    module: "api.backends.image.mosaic_image"
+    priority: 20
+    workflow: "01_first_frame_sd15.json"
+    prompt_style: "tag"
+    consistency_default: "ip_adapter"
+    negative_prompt: "bad quality, worst quality, low quality, ugly, deformed, blurry, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, jpeg artifacts, text, watermark, logo, signature, subtitle, caption, text overlay, speech bubble, comic text"
+    default_params:
+      width: 512
+      height: 512
+      steps: 20
+      cfg_scale: 7.5
+
+  cosmos:
+    module: "api.backends.image.mosaic_image"
+    priority: 30
+    workflow: "cosmos_predict2_2B_t2i.json"
+    prompt_style: "natural"
+    consistency_default: "none"
+    negative_prompt: "bad quality, worst quality, low quality, ugly, deformed, blurry, text, watermark, logo, signature, subtitle, caption, text overlay"
+    default_params:
+      width: 1024
+      height: 576
+      steps: 35
+
+# ══════════════════════════════════════════════════════════
+#  视频后端
+# ══════════════════════════════════════════════════════════
+
+video_backends:
+  cosmos-video:
+    module: "api.backends.video.mosaic_video"
+    priority: 10
+    workflow: "04_img2video_cosmos.json"
+    description: "Mosaic 离线视频生成（SVD）"
+
+  animatediff:
+    module: "api.backends.video.mosaic_video"
+    priority: 20
+    workflow: "02_img2video.json"
+    description: "Mosaic 离线视频生成（SVD）"
+
+  cogvideox:
+    module: "api.backends.video.mosaic_video"
+    priority: 30
+    workflow: "03_img2video_cogvideo.json"
+    description: "Mosaic 离线视频生成（SVD）"
+
+# ══════════════════════════════════════════════════════════
+#  LLM 模型限制表
+# ══════════════════════════════════════════════════════════
+
+llm_models:
+  "Qwen/Qwen2.5-7B-Instruct":
+    context_window: 32768
+    max_output: 8192
+  "Qwen/Qwen2.5-14B-Instruct":
+    context_window: 32768
+    max_output: 8192
+  "Qwen/Qwen2.5-72B-Instruct":
+    context_window: 32768
+    max_output: 8192
+
+# ══════════════════════════════════════════════════════════
+#  ComfyUI 工作流模板定义（保留用于 prompt 构建）
+# ══════════════════════════════════════════════════════════
+
+workflow_templates:
+  flux:
+    image_workflow: "01_first_frame_flux.json"
+    video_workflow: "02_img2video.json"
+  sd15:
+    image_workflow: "01_first_frame_sd15.json"
+    video_workflow: "02_img2video.json"
+  cosmos:
+    image_workflow: "cosmos_predict2_2B_t2i.json"
+    video_workflow: "04_img2video_cosmos.json"
+
+# ══════════════════════════════════════════════════════════
+#  辅助服务（非后端，但需要健康检查）
+# ══════════════════════════════════════════════════════════
+
+services:
+  redis:
+    description: "Redis 任务队列"
+    backend: "redis"
+    type: "infra"
+    health_check:
+      type: "port"
+      host: "127.0.0.1"
+      port: 6379
+
+  celery:
+    description: "Celery Worker"
+    backend: "celery"
+    type: "infra"
+    health_check:
+      type: "celery_active"
+
+  ffmpeg:
+    description: "FFmpeg 视频处理"
+    backend: "ffmpeg"
+    type: "local"
+    health_check:
+      type: "command"
+      command: "ffmpeg"
+
+  seko:
+    description: "影视策划案（Mosaic LLM 离线生成）"
+    backend: "mosaic"
+    type: "local"
+    health_check:
+      type: "import"
+      module: "mosaic"
+
+  training:
+    description: "LoRA 训练（Mosaic 离线）"
+    backend: "mosaic"
+    type: "local"
+    health_check:
+      type: "import"
+      module: "mosaic"

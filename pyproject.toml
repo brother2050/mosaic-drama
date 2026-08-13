@@ -1,0 +1,98 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-drama-pipeline"
+version = "2.0.0"
+description = "AI 短剧全流程生产管线 v2 — 从剧本到成片，一键搞定"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.104.0,<1.0",
+    "uvicorn[standard]>=0.24.0,<1.0",
+    "python-multipart>=0.0.6,<1.0",
+    "pyyaml>=6.0,<7.0",
+    "python-dotenv>=1.0.0,<2.0",
+    "httpx>=0.25.0,<1.0",
+    "pydantic>=2.0.0,<3.0",
+    "click>=8.1.0,<9.0",
+    "rich>=13.0.0,<14.0",
+    "Pillow>=10.0.0,<12.0",
+    "celery>=5.3.0,<6.0",
+    "redis>=5.0.0,<6.0",
+    "psycopg2-binary>=2.9.0,<3.0",
+    "watchdog>=3.0.0,<5.0",
+    "openai>=1.0.0,<3.0",
+]
+
+[project.optional-dependencies]
+vertical = [
+    "face_recognition>=1.3.0",
+    "opencv-python-headless>=4.8.0",
+]
+dev = ["pytest>=7.0", "ruff>=0.1.0"]
+all = ["ai-drama-pipeline[vertical,dev]"]
+
+[project.scripts]
+drama = "cli:cli"
+
+[tool.setuptools.packages.find]
+include = ["api*", "cli*", "engines*", "flow*", "infra*", "pipeline*", "post*", "scripts*", "web*"]
+
+[tool.setuptools.package-data]
+"web" = ["static/**/*"]
+"config" = ["*.yaml"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific rules
+]
+ignore = ["E501", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["api", "cli", "engines", "infra", "pipeline", "post", "web"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = "celery.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "watchdog.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "psycopg2.*"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["api", "engines", "infra", "pipeline", "post", "web"]
+omit = ["tests/*", "scripts/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 60
