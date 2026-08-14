@@ -150,7 +150,7 @@ const I18N = {
   'set.env': { zh: '环境', en: 'Environment' },
   'set.config': { zh: '配置', en: 'Configuration' },
   'set.tts': { zh: 'TTS', en: 'TTS' },
-  'set.comfyui': { zh: 'ComfyUI', en: 'ComfyUI' },
+  'set.mosaic_image': { zh: 'Mosaic 图像', en: 'Mosaic Image' },
   'set.lipsync': { zh: 'LipSync', en: 'LipSync' },
   'set.backend': { zh: '后端', en: 'Backend' },
   'set.address': { zh: '地址', en: 'Address' },
@@ -413,7 +413,7 @@ const I18N = {
 
   // 3.4 配置预设
   'set.presets': { zh: '⚡ 快速配置', en: '⚡ Quick Presets' },
-  'set.preset_local': { zh: '🏠 本地 ComfyUI', en: '🏠 Local ComfyUI' },
+  'set.preset_local': { zh: '🏠 本地 Mosaic', en: '🏠 Local Mosaic' },
   'set.preset_cloud': { zh: '☁ 云端 SiliconFlow', en: '☁ Cloud SiliconFlow' },
   'set.preset_ollama': { zh: '🦙 Ollama 本地', en: '🦙 Ollama Local' },
   'set.preset_applied': { zh: '✅ 预设已应用', en: '✅ Preset applied' },
@@ -497,7 +497,7 @@ const I18N = {
   'nav.seko': { zh: '影视策划', en: 'Seko Proposal' },
   'seko.title': { zh: '🎬 影视策划案', en: '🎬 Seko Proposal' },
   'seko.desc': { zh: '基于 Seko AI 一键生成影视策划案，包含故事梗概、美术风格、角色/场景设计、分镜剧本', en: 'AI-powered proposal generation: story, art style, characters, scenes, storyboard' },
-  'seko.api_key_unset': { zh: '⚠ 请先在系统设置中配置 SEKO_API_KEY', en: '⚠ Please set SEKO_API_KEY in Settings first' },
+  'seko.api_key_unset': { zh: '💡 Mosaic LLM 离线模式，无需配置 API Key', en: '💡 Mosaic LLM offline mode, no API Key required' },
   'seko.new_proposal': { zh: '📝 新建策划案', en: '📝 New Proposal' },
   'seko.prompt_label': { zh: '故事描述', en: 'Story Description' },
   'seko.prompt_ph': { zh: '输入你的故事想法，例如：\n"一个程序员穿越到古代用代码拯救世界"', en: 'Enter your story idea, e.g.:\n"A programmer travels back in time to save the ancient world with code"' },

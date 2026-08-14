@@ -131,14 +131,14 @@ flowchart TB
         vp["角色外貌 → AI 绘图 prompt<br/>appearance (中文) → appearance_prompt_en<br/>+ body_features (伤疤/纹身提取)"]
     end
 
-    subgraph portraits["3.3 定妆照 — ComfyUI（Web 端单独执行）"]
+    subgraph portraits["3.3 定妆照 — Mosaic（Web 端单独执行）"]
         direction TB
         pm["主定妆照<br/>特写构图"]
         po["服装参考图<br/>全身构图 × N 套"]
         pm --> po
     end
 
-    subgraph scenes_gen["3.4 场景图 — ComfyUI（Web 端单独执行）"]
+    subgraph scenes_gen["3.4 场景图 — Mosaic（Web 端单独执行）"]
         direction TB
         sg["全景参考图<br/>读取 description_en"]
     end
@@ -207,9 +207,9 @@ flowchart TB
             subgraph shot["单镜头处理流程"]
                 direction LR
                 s1["🗣️ TTS 合成<br/>────<br/>台词文本<br/>+ 角色声音配置<br/>→ audio.wav<br/><br/>[Mosaic 离线 TTS]"]
-                s2["🖼️ 首帧生成<br/>────<br/>appearance_en<br/>+ description_en<br/>+ LoRA (可选)<br/>→ frame.png<br/><br/>[ComfyUI]"]
-                s3["🎥 视频生成<br/>────<br/>frame.png<br/>+ duration→帧数<br/>→ video.mp4<br/><br/>[AnimateDiff]"]
-                s4["👄 口型同步<br/>────<br/>video.mp4<br/>+ audio.wav<br/>→ synced.mp4<br/><br/>[MuseTalk]"]
+                s2["🖼️ 首帧生成<br/>────<br/>appearance_en<br/>+ description_en<br/>+ LoRA (可选)<br/>→ frame.png<br/><br/>[Mosaic]"]
+                s3["🎥 视频生成<br/>────<br/>frame.png<br/>+ duration→帧数<br/>→ video.mp4<br/><br/>[Mosaic 离线]"]
+                s4["👄 口型同步<br/>────<br/>video.mp4<br/>+ audio.wav<br/>→ synced.mp4<br/><br/>[Mosaic 口型同步]"]
                 s1 --> s2 --> s3 --> s4
             end
         end
@@ -386,12 +386,12 @@ flowchart TB
         s1["阶段1: LLM 分镜"]
         s2["阶段2: LLM 实体"]
         s3t["阶段3.1: LLM 翻译"]
-        s3p["阶段3.2: ComfyUI 定妆照"]
-        s3s["阶段3.3: ComfyUI 场景图"]
+        s3p["阶段3.2: Mosaic 定妆照"]
+        s3s["阶段3.3: Mosaic 场景图"]
         s4t["阶段4: TTS"]
-        s4f["阶段4: ComfyUI 首帧"]
-        s4v["阶段4: ComfyUI 视频"]
-        s4l["阶段4: LipSync"]
+        s4f["阶段4: Mosaic 首帧"]
+        s4v["阶段4: Mosaic 视频"]
+        s4l["阶段4: 口型同步"]
         s5["阶段5: FFmpeg 后期"]
     end
 
@@ -433,7 +433,7 @@ consistency_method: auto   # auto / pulid_flux / ip_adapter / none
 | `ip_adapter` | IP-Adapter Plus 面部一致性 | SD1.5/SDXL（UNet） |
 | `none` | 不使用一致性（仅 LoRA + seed） | 全部 |
 
-> **自动节点检测**：启动时调用 ComfyUI `/object_info` 获取已注册节点类型，与各方案的 `required_comfyui_nodes`（定义在 `models_registry.yaml`）比对。若所需插件未安装，对应方案自动跳过并记录 Warning，不中断管线。检查统一在 `inject_from_registry()` 入口执行，覆盖泛型 `NodeGraphInjector` 和 `inject_method` 覆盖（如 ControlNet Depth）两条路径。
+> **框架导入检测**：启动时检测 Mosaic 框架已导入的能力模块，与各方案的 `required_capabilities`（定义在 `models_registry.yaml`）比对。若所需能力未加载，对应方案自动跳过并记录 Warning，不中断管线。检查统一在 `inject_from_registry()` 入口执行，覆盖泛型 `NodeGraphInjector` 和 `inject_method` 覆盖（如 ControlNet Depth）两条路径。
 
 ### PuLID-Flux（Flux 后端推荐）
 
@@ -535,20 +535,20 @@ flowchart LR
 
     subgraph production["生产阶段"]
         tts["TTS 服务<br/>Mosaic 离线"]
-        comfyui["ComfyUI<br/>图片+视频生成"]
-        lipsync["LipSync<br/>MuseTalk / Wav2Lip"]
-        ipadapter["IP-Adapter Plus<br/>角色面部一致性"]
+        mosaic["Mosaic<br/>图片+视频生成"]
+        lipsync["口型同步<br/>Mosaic 口型同步"]
+        consistency["Mosaic 内置一致性<br/>角色面部一致性"]
     end
 
     subgraph optional["可选"]
-        llm["LLM 服务<br/>Ollama / OpenAI 兼容"]
+        llm["LLM 服务<br/>Mosaic 离线 LLM"]
         seko["Seko 策划案<br/>seko.sensetime.com"]
         ffmpeg["FFmpeg<br/>后期合成"]
     end
 
     redis --> celery
-    celery --> tts & comfyui & lipsync
-    comfyui --> ipadapter
+    celery --> tts & mosaic & lipsync
+    mosaic --> consistency
     llm -.->|"阶段1-3"| celery
     seko -.->|"策划案导入"| celery
     ffmpeg -.->|"阶段5"| celery

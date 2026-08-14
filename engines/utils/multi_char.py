@@ -29,7 +29,7 @@ class MultiCharacterHandler:
     ) -> str:
         """生成多人同框 prompt。
 
-        超过 CLIP 限制时截断并警告（而非仅警告，避免 ComfyUI 静默截断导致不可控结果）。
+        超过 CLIP 限制时截断并警告（而非仅警告，避免 Mosaic 静默截断导致不可控结果）。
         """
         if not characters:
             return ""

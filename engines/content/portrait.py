@@ -34,7 +34,7 @@ _GENERATING_TTL = 300  # 5 分钟超时（单张定妆照生成不应超过此�
 @dataclass
 class ViewGenParams:
     """视图生成参数 — 消除 _generate_view 的 11 个参数"""
-    comfyui: object
+    comfyui: object  # Mosaic 图像后端实例（通过 image backend 接口调用）
     wb: object
     char_id: str
     portrait_dir: Path
@@ -80,12 +80,12 @@ def _inject_ref_image(wf: dict, ref_image: str, char_id: str, project_dir: str, 
     """注入参考图到工作流的 IP-Adapter/PuLID LoadImage 节点
 
     当 ref_image 为空时（如正面视图生成 cover.png 之前），移除工作流中已注入的
-    一致性节点（PuLID / IP-Adapter），避免 ComfyUI 因引用不存在的图片而报错。
+    一致性节点（PuLID / IP-Adapter），避免 Mosaic 后端因引用不存在的图片而报错。
     """
     from engines.workflow.utils import find_character_load_image_nodes, find_load_image_nodes
 
     if not ref_image or not os.path.exists(ref_image):
-        # 无参考图时，移除已注入的一致性节点（PuLID / IP-Adapter），避免 ComfyUI 校验失败
+        # 无参考图时，移除已注入的一致性节点（PuLID / IP-Adapter），避免 Mosaic 校验失败
         _remove_consistency_nodes(wf)
         return
     char_nodes = find_character_load_image_nodes(wf)
@@ -94,15 +94,15 @@ def _inject_ref_image(wf: dict, ref_image: str, char_id: str, project_dir: str, 
         char_nodes = find_load_image_nodes(wf)
     if not char_nodes:
         return
-    from infra.storage.asset_tracker import comfyui_asset_name, AssetTracker
-    remote_name = comfyui_asset_name(project_dir, char_id, os.path.basename(ref_image))
+    from infra.storage.asset_tracker import mosaic_asset_name, AssetTracker
+    remote_name = mosaic_asset_name(project_dir, char_id, os.path.basename(ref_image))
     for nid in char_nodes:
         wf[nid]["inputs"]["image"] = remote_name
     try:
         AssetTracker(project_dir).upload_if_needed(comfyui, ref_image, remote_name, comfyui.url)
     except Exception as e:
         if raise_on_error:
-            raise RuntimeError(f"参考图上传到 ComfyUI 失败: {e}") from e
+            raise RuntimeError(f"参考图上传到 Mosaic 失败: {e}") from e
         logger.warning(f"参考图上传失败: {e}")
 
 
@@ -110,7 +110,7 @@ def _remove_consistency_nodes(wf: dict) -> None:
     """从工作流中移除 PuLID / IP-Adapter 一致性节点子图
 
     正面视图生成 cover.png 之前无参考图可用，需要清理已注入的一致性节点，
-    否则 ComfyUI 会因引用不存在的图片文件而报 'Invalid image file' 错误。
+    否则 Mosaic 后端会因引用不存在的图片文件而报 'Invalid image file' 错误。
 
     保留 LoRA 节点（角色 LoRA / 全局 LoRA / 风格 LoRA）——它们不依赖一致性节点。
     移除一致性节点后，KSampler.model 重连到 LoRA（如有），保持 LoRA 在链路中。

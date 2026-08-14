@@ -1,4 +1,4 @@
-"""ComfyUI 工作流管理包
+"""Mosaic 工作流管理包
 
 从 workflow_builder.py, workflow_inject.py, workflow.py 整合而来。
 """

@@ -25,7 +25,7 @@
   .src-yaml     { background: #1a3326; border: 1.5px solid #22c55e; }
   .src-db       { background: #2d1f3d; border: 1.5px solid #a855f7; }
   .src-llm      { background: #3d2e1a; border: 1.5px solid #f59e0b; }
-  .src-comfyui  { background: #1a2d3d; border: 1.5px solid #06b6d4; }
+  .src-mosaic   { background: #1a2d3d; border: 1.5px solid #06b6d4; }
   .stage        { background: #2a1a2e; border: 2px solid #ec4899; }
   .output       { background: #1a2a1a; border: 2px solid #10b981; }
 
@@ -62,7 +62,7 @@
   <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>YAML 实体</div>
   <div class="legend-item"><div class="legend-dot" style="background:#a855f7"></div>数据库</div>
   <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>LLM 生成</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#06b6d4"></div>ComfyUI</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#06b6d4"></div>Mosaic</div>
   <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div>管线阶段</div>
   <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>产物</div>
 </div>
@@ -74,9 +74,9 @@
   <div class="zone-label" style="left:16px;top:4px">数据源 DATA SOURCES</div>
 
   <!-- 配置文件 -->
-  <div class="node src-config" style="left:20px;top:32px;width:180px" data-tip="system.yaml|系统全局配置：ComfyUI/TTS/LLM 后端 URL、模型选择、超时、一致性方案、预设（styles/genres/shot_types/cameras/emotions）。Config 类带 mtime 缓存，文件变化自动重载。<br><br>路径: config/system.yaml">
+  <div class="node src-config" style="left:20px;top:32px;width:180px" data-tip="system.yaml|系统全局配置：Mosaic 离线后端配置、模型选择、超时、一致性方案、预设（styles/genres/shot_types/cameras/emotions）。Config 类带 mtime 缓存，文件变化自动重载。<br><br>路径: config/system.yaml">
     <div class="node-title">⚙️ system.yaml</div>
-    <div class="node-desc">后端URL · 模型选择 · 超时 · 预设</div>
+    <div class="node-desc">Mosaic离线 · 模型选择 · 超时 · 预设</div>
   </div>
 
   <div class="node src-config" style="left:220px;top:32px;width:180px" data-tip="project.yaml|项目级配置：项目名、集数、风格、题材、语言。<br>覆盖 system.yaml（深度合并）。<br><br>路径: projects/default/config/project.yaml">
@@ -84,7 +84,7 @@
     <div class="node-desc">项目名 · 集数 · style · genre · language</div>
   </div>
 
-  <div class="node src-config" style="left:420px;top:32px;width:190px" data-tip="models_registry.yaml|所有后端元数据的唯一真相来源：<br>- tts_backends（Mosaic 离线）<br>- lipsync_backends（2种）<br>- llm_backends（openai/ollama）<br>- image_backends（sd15/flux/cosmos/hidream）<br>- video_backends（animatediff/cogvideox/cosmos）<br>- consistency_methods（ip_adapter/pulid_flux）<br>- services（comfyui/redis/celery/ffmpeg/seko/training）<br>- llm_models（模型限制表）<br>- pipeline_steps（步骤编排）<br><br>路径: config/models_registry.yaml">
+  <div class="node src-config" style="left:420px;top:32px;width:190px" data-tip="models_registry.yaml|所有后端元数据的唯一真相来源：<br>- tts_backends（Mosaic 离线）<br>- lipsync_backends（Mosaic 口型同步）<br>- llm_backends（Mosaic 离线 LLM）<br>- image_backends（sd15/flux/cosmos/hidream）<br>- video_backends（animatediff/cogvideox/cosmos）<br>- consistency_methods（ip_adapter/pulid_flux）<br>- services（mosaic/redis/celery/ffmpeg/seko/training）<br>- llm_models（模型限制表）<br>- pipeline_steps（步骤编排）<br><br>路径: config/models_registry.yaml">
     <div class="node-title">📋 models_registry.yaml</div>
     <div class="node-desc">后端定义 · 健康检查 · LLM限制 · 步骤编排</div>
   </div>
@@ -111,9 +111,9 @@
   </div>
 
   <!-- 数据库 -->
-  <div class="node src-db" style="left:700px;top:120px;width:200px" data-tip="PostgreSQL 数据库|三张核心表：<br><br><b>shots</b> — 分镜表<br>PK: (project, episode, shot_id)<br>字段: scene_name, characters, action, dialogue,<br>action_en, dialogue_en, camera, shot_type,<br>duration, emotion, outfit<br><br><b>generation_status</b> — 生成状态<br>UNIQUE: (project, episode, shot_id, stage)<br>stage: tts/first_frame/video/lipsync<br>status: pending/running/done/error/skipped<br><br><b>comfyui_assets</b> — 资源跟踪<br>跟踪哪些文件已上传到哪些ComfyUI服务器<br><br>连接池: PgPool（AI_DRAMA_DB_DSN）">
+  <div class="node src-db" style="left:700px;top:120px;width:200px" data-tip="PostgreSQL 数据库|三张核心表：<br><br><b>shots</b> — 分镜表<br>PK: (project, episode, shot_id)<br>字段: scene_name, characters, action, dialogue,<br>action_en, dialogue_en, camera, shot_type,<br>duration, emotion, outfit<br><br><b>generation_status</b> — 生成状态<br>UNIQUE: (project, episode, shot_id, stage)<br>stage: tts/first_frame/video/lipsync<br>status: pending/running/done/error/skipped<br><br><b>mosaic_assets</b> — 资源跟踪<br>跟踪哪些文件已上传到哪些Mosaic服务器<br><br>连接池: PgPool（AI_DRAMA_DB_DSN）">
     <div class="node-title">🗄️ PostgreSQL</div>
-    <div class="node-desc">shots · generation_status · comfyui_assets</div>
+    <div class="node-desc">shots · generation_status · mosaic_assets</div>
   </div>
 
   <!-- ═══ 引擎区 ═══ -->
@@ -129,9 +129,9 @@
     <div class="node-desc">后端查询 · 工作流映射 · 模型限制</div>
   </div>
 
-  <div class="node src-yaml" style="left:380px;top:240px;width:160px" data-tip="CharacterBible (engines/character_bible.py)|角色圣经管理器：<br>- get_context(char_id) → 中文摘要，注入LLM prompt<br>- get_tags(char_id) → 英文tag，注入ComfyUI prompt<br>缓存带mtime检查，YAML修改后自动重载。<br>深度合并 bible + bible_en（en覆盖zh）">
+  <div class="node src-yaml" style="left:380px;top:240px;width:160px" data-tip="CharacterBible (engines/character_bible.py)|角色圣经管理器：<br>- get_context(char_id) → 中文摘要，注入LLM prompt<br>- get_tags(char_id) → 英文tag，注入Mosaic prompt<br>缓存带mtime检查，YAML修改后自动重载。<br>深度合并 bible + bible_en（en覆盖zh）">
     <div class="node-title">📖 CharacterBible</div>
-    <div class="node-desc">中文context → LLM<br>英文tags → ComfyUI</div>
+    <div class="node-desc">中文context → LLM<br>英文tags → Mosaic</div>
   </div>
 
   <div class="node src-llm" style="left:560px;top:240px;width:160px" data-tip="PromptCompiler (engines/prompt_compiler.py)|Mustache风格prompt模板编译器：<br>- 从 prompt_templates.yaml 加载模板<br>- ${variable} / {{variable}} 变量替换<br>- 空值自动清理多余标点<br>- compile_first_frame(): 编译首帧prompt<br>  注入: style, genre, scene(+lighting),<br>  character(+age), action(+body_language),<br>  emotion(+emotional_range), shot_type, camera">
@@ -139,7 +139,7 @@
     <div class="node-desc">模板编译 · 变量替换 · 空值清理</div>
   </div>
 
-  <div class="node src-comfyui" style="left:740px;top:240px;width:170px" data-tip="WorkflowBuilder (engines/workflow_builder.py)|ComfyUI工作流构建器：<br>1. 加载工作流JSON模板<br>2. 构建prompt（调用PromptCompiler）<br>3. 注入角色一致性（LoRA/IP-Adapter/PuLID）<br>4. 注入风格LoRA + 全局LoRA<br>5. 注入场景参考图<br>6. GPU适配（分辨率/步数）<br>7. 动态计算视频帧数(duration×fps)">
+  <div class="node src-mosaic" style="left:740px;top:240px;width:170px" data-tip="WorkflowBuilder (engines/workflow_builder.py)|Mosaic工作流构建器：<br>1. 加载工作流JSON模板（ComfyUI格式）<br>2. 构建prompt（调用PromptCompiler）<br>3. 注入角色一致性（LoRA/IP-Adapter/PuLID）<br>4. 注入风格LoRA + 全局LoRA<br>5. 注入场景参考图<br>6. GPU适配（分辨率/步数）<br>7. 动态计算视频帧数(duration×fps)">
     <div class="node-title">🔩 WorkflowBuilder</div>
     <div class="node-desc">工作流构建 · LoRA注入 · 一致性方案</div>
   </div>
@@ -154,9 +154,9 @@
   </div>
 
   <!-- Portrait -->
-  <div class="node stage" style="left:240px;top:375px;width:200px" data-tip="📸 定妆照生成 (portrait)|输入: 角色YAML(appearance_prompt_en + outfits)<br><br>处理:<br>1. 主定妆照: WorkflowBuilder.build_first_frame()<br>   → ComfyUI生成 → cover.png<br>2. 五视图: front/left_side/right_side/back/three_quarter<br>3. 服装图: 每套outfit生成独立参考图<br><br>一致性: 同seed控制<br>自动触发: build_first_frame发现无cover.png时<br><br>输出: assets/characters/{id}/cover.png + views/ + outfits/">
+  <div class="node stage" style="left:240px;top:375px;width:200px" data-tip="📸 定妆照生成 (portrait)|输入: 角色YAML(appearance_prompt_en + outfits)<br><br>处理:<br>1. 主定妆照: WorkflowBuilder.build_first_frame()<br>   → Mosaic生成 → cover.png<br>2. 五视图: front/left_side/right_side/back/three_quarter<br>3. 服装图: 每套outfit生成独立参考图<br><br>一致性: 同seed控制<br>自动触发: build_first_frame发现无cover.png时<br><br>输出: assets/characters/{id}/cover.png + views/ + outfits/">
     <div class="node-title">📸 Portrait 定妆照</div>
-    <div class="node-desc">主图 · 五视图 · 服装参考图<br>ComfyUI生成 · seed一致性</div>
+    <div class="node-desc">主图 · 五视图 · 服装参考图<br>Mosaic生成 · seed一致性</div>
   </div>
 
   <!-- TTS -->
@@ -166,19 +166,19 @@
   </div>
 
   <!-- First Frame -->
-  <div class="node stage" style="left:660px;top:375px;width:200px" data-tip="🖼️ 首帧生成 (first_frame)|输入: shot数据 + 角色desc + 场景desc + bible<br><br>处理:<br>1. _build_first_frame_prompt():<br>   - load_scene() → scene_data(lighting)<br>   - bible.load() → emotional_range + body_language<br>   - get_view_appearance(age + gender + view)<br>   - PromptCompiler.compile_first_frame(全部数据)<br>2. set_clip_text_prompts(positive, negative)<br>3. 注入一致性: LoRA + IP-Adapter/PuLID<br>4. 注入风格LoRA + 全局LoRA<br>5. ComfyUI生成<br><br>输出: output/e01/s{shot_id}/frame.png">
+  <div class="node stage" style="left:660px;top:375px;width:200px" data-tip="🖼️ 首帧生成 (first_frame)|输入: shot数据 + 角色desc + 场景desc + bible<br><br>处理:<br>1. _build_first_frame_prompt():<br>   - load_scene() → scene_data(lighting)<br>   - bible.load() → emotional_range + body_language<br>   - get_view_appearance(age + gender + view)<br>   - PromptCompiler.compile_first_frame(全部数据)<br>2. set_clip_text_prompts(positive, negative)<br>3. 注入一致性: LoRA + IP-Adapter/PuLID<br>4. 注入风格LoRA + 全局LoRA<br>5. Mosaic生成<br><br>输出: output/e01/s{shot_id}/frame.png">
     <div class="node-title">🖼️ 首帧生成</div>
     <div class="node-desc">prompt(全数据) + 一致性 + LoRA<br>→ frame.png</div>
   </div>
 
   <!-- Video -->
-  <div class="node stage" style="left:20px;top:475px;width:180px" data-tip="🎬 视频生成 (video)|输入: frame.png + shot.duration<br><br>处理:<br>1. build_video():<br>   - 设置首帧图到LoadImage节点<br>   - _apply_duration(): duration × fps → video_frames<br>   - 注入风格LoRA<br>2. ComfyUI img2video<br><br>输出: output/e01/s{shot_id}/video.mp4">
+  <div class="node stage" style="left:20px;top:475px;width:180px" data-tip="🎬 视频生成 (video)|输入: frame.png + shot.duration<br><br>处理:<br>1. build_video():<br>   - 设置首帧图到LoadImage节点<br>   - _apply_duration(): duration × fps → video_frames<br>   - 注入风格LoRA<br>2. Mosaic img2video<br><br>输出: output/e01/s{shot_id}/video.mp4">
     <div class="node-title">🎬 Video 视频</div>
     <div class="node-desc">frame.png + duration<br>→ video.mp4</div>
   </div>
 
   <!-- Lipsync -->
-  <div class="node stage" style="left:220px;top:475px;width:180px" data-tip="👄 口型同步 (lipsync)|输入: video.mp4 + audio.wav<br><br>处理:<br>MuseTalk/Wav2Lip:<br>将音频口型同步到视频人物嘴部<br><br>输出: output/e01/s{shot_id}/synced.mp4">
+  <div class="node stage" style="left:220px;top:475px;width:180px" data-tip="👄 口型同步 (lipsync)|输入: video.mp4 + audio.wav<br><br>处理:<br>Mosaic 口型同步:<br>将音频口型同步到视频人物嘴部<br><br>输出: output/e01/s{shot_id}/synced.mp4">
     <div class="node-title">👄 Lipsync 口型同步</div>
     <div class="node-desc">video + audio → synced.mp4</div>
   </div>

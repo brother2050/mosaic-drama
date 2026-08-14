@@ -46,20 +46,20 @@ function _showOverlay(id, title, bodyHtml, saveFn, saveLabel, deleteFn) {
 // MODULE: dashboard — 仪表盘
 // ══════════════════════════════════════════════════════════
 
-const TOOL_META = { redis:{icon:'🔴',label:'Redis'}, celery:{icon:'🔧',label:'Celery'}, ffmpeg:{icon:'🎞',label:'FFmpeg'}, tts:{icon:'🎤',label:'TTS'}, comfyui:{icon:'🎨',label:'ComfyUI'}, lipsync:{icon:'👄',label:'LipSync'}, llm:{icon:'🧠',label:'LLM'}, music:{icon:'🎵',label:'Music'}, seko:{icon:'🎬',label:'Seko'}, training:{icon:'🏋',label:'Training'} };
+const TOOL_META = { redis:{icon:'🔴',label:'Redis'}, celery:{icon:'🔧',label:'Celery'}, ffmpeg:{icon:'🎞',label:'FFmpeg'}, tts:{icon:'🎤',label:'TTS'}, image:{icon:'🎨',label:'Mosaic图像'}, lipsync:{icon:'👄',label:'LipSync'}, llm:{icon:'🧠',label:'LLM'}, music:{icon:'🎵',label:'Music'}, seko:{icon:'🎬',label:'Seko'}, training:{icon:'🏋',label:'Training'} };
 
 function _setupGuide(tools) {
   const missing = [];
   const redis = tools.redis || {};
   const celery = tools.celery || {};
-  const comfyui = tools.comfyui || {};
+  const image = tools.image || {};
   const tts = tools.tts || {};
   const lipsync = tools.lipsync || {};
   if (!redis.available) missing.push({ icon: '🔴', name: 'Redis', fix: 'redis-server --daemonize yes', hint: '任务队列（必选）', critical: true });
   if (!celery.available) missing.push({ icon: '🔧', name: 'Celery Worker', fix: 'drama worker', hint: '异步任务处理（必选）', critical: true });
-  if (!comfyui.available) missing.push({ icon: '🎨', name: 'ComfyUI', fix: '启动 ComfyUI 并在设置中配置 URL', hint: '图片/视频生成（生产必须）' });
+  if (!image.available) missing.push({ icon: '🎨', name: 'Mosaic图像', fix: '启动 Mosaic 框架', hint: '图片/视频生成（Mosaic 离线）' });
   if (!tts.available) missing.push({ icon: '🎤', name: 'TTS', fix: '检查 Mosaic 离线 TTS 服务状态', hint: '语音合成（生产必须）' });
-  if (!lipsync.available) missing.push({ icon: '👄', name: 'LipSync', fix: '启动 MuseTalk/Wav2Lip 服务', hint: '口型同步（生产必须）' });
+  if (!lipsync.available) missing.push({ icon: '👄', name: 'LipSync', fix: '启动 Mosaic 口型同步', hint: '口型同步（生产必须）' });
   if (!missing.length) return '';
   const items = missing.map(m =>
     `<div style="display:flex;align-items:center;gap:.5rem;padding:.4rem 0">
@@ -97,7 +97,7 @@ async function loadDashboard() {
     const groups = [
       { label: t('dash.infra'), keys: ['redis', 'celery', 'ffmpeg'] },
       { label: t('dash.ai_tools'), keys: ['tts', 'music', 'seko', 'training'] },
-      { label: t('dash.gpu_tools'), keys: ['comfyui', 'lipsync', 'llm'] },
+      { label: t('dash.gpu_tools'), keys: ['image', 'lipsync', 'llm'] },
     ];
     let toolHtml = '';
     for (const g of groups) {

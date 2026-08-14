@@ -45,7 +45,7 @@ _无_
 | 字幕越界 | `post/subtitle.py` | 最后一条字幕用完整 duration |
 | TOCTOU 竞态 | `scripts/project_builder.py` | 移除应用层 DB 去重，改用 DB 级 upsert |
 | 导入静默切换追加模式 | `training_tasks.py` | 返回 mode_switched + warning |
-| comfyui_generate files[0] 未检查 | `helpers.py` | 源文件存在性防御检查 |
+| mosaic_generate files[0] 未检查 | `helpers.py` | 源文件存在性防御检查 |
 | BGM 回退用预期时长 | `production.py` | 复用已探测的 video_durations |
 | ImportPlan ID 重复未检测 | `infra/models.py` | characters/scenes ID 重复校验 |
 | normalize_character 返回值丢弃 | `llm_generator.py` + `entity_utils.py` | results[:] = [...] 回写列表 |
@@ -78,8 +78,8 @@ _无_
 | 死代码 get_or_check / get_cached | `infra/monitor.py` | 被 get_or_check_full 取代 / 从未调用 |
 | 死代码 is_available / stats | `infra/concurrency_groups.py` | 从未调用，is_available 有 TOCTOU 问题 |
 | 短剧管理 AI 从大纲预填 | `web/static/js/drama.js` | 生成角色/场景时从总大纲/各集大纲自动预填描述到 textarea |
-| get_available_node_types 缺失 | `api/backends/image/comfyui.py` | ComfyUI 类缺少该方法 → available_nodes 恒空 → 全部一致性方案静默跳过 |
+| get_available_node_types 缺失 | `api/backends/image/mosaic.py` | Mosaic 类缺少该方法 → available_nodes 恒空 → 全部一致性方案静默跳过 |
 | controlnet_depth 硬编码重复 | `engines/workflow/inject.py` + `node_graph.py` | 节点可用性检查统一到 inject_from_registry() 入口，去除 Python 硬编码 |
 | AIToolkitTrainer 缺少标准接口 | `api/backends/training/ai_toolkit.py` | 新增 health_check() + shutdown()，参与 Container fallback |
-| upload_image 无 hasattr 保护 | `engines/workflow/builder.py` | 添加 hasattr(self.comfyui, 'upload_image') 防御 |
-| _ComfyUIVideoBase 未代理 | `api/backends/video/animatediff.py` | 添加 get_available_node_types() 代理方法 |
+| upload_image 无 hasattr 保护 | `engines/workflow/builder.py` | 添加 hasattr(self.image_backend, 'upload_image') 防御 |
+| _MosaicVideoBase 未代理 | `api/backends/video/animatediff.py` | 添加 get_available_node_types() 代理方法 |

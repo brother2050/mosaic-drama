@@ -62,11 +62,11 @@ def _create_ref_nodes(wf: dict, ref_images: list[str], prefix: str,
     单图: 返回 LoadImage 节点 ID
     多图: 返回最后一个 ImageBatch 节点 ID
     """
-    from infra.storage.asset_tracker import comfyui_asset_name
+    from infra.storage.asset_tracker import mosaic_asset_name
 
     if len(ref_images) == 1:
         nid = f"{prefix}_{suffix}"
-        ref_name = comfyui_asset_name(project_dir, char_id, os.path.basename(ref_images[0])) if project_dir else os.path.basename(ref_images[0])
+        ref_name = mosaic_asset_name(project_dir, char_id, os.path.basename(ref_images[0])) if project_dir else os.path.basename(ref_images[0])
         wf[nid] = {"class_type": "LoadImage", "inputs": {"image": ref_name}}
         return nid
 
@@ -74,7 +74,7 @@ def _create_ref_nodes(wf: dict, ref_images: list[str], prefix: str,
     load_nodes = []
     for i, ref in enumerate(ref_images):
         nid = f"{prefix}_{suffix}_{i}"
-        ref_name = comfyui_asset_name(project_dir, char_id, os.path.basename(ref)) if project_dir else os.path.basename(ref)
+        ref_name = mosaic_asset_name(project_dir, char_id, os.path.basename(ref)) if project_dir else os.path.basename(ref)
         wf[nid] = {"class_type": "LoadImage", "inputs": {"image": ref_name}}
         load_nodes.append(nid)
 
@@ -91,14 +91,14 @@ def _create_ref_nodes(wf: dict, ref_images: list[str], prefix: str,
 
 def _upload_controlnet_ref(builder: object, local_path: str,
                           project_dir: str, char_id: str) -> None:
-    """将 ControlNet 全身参考图上传到 ComfyUI 服务器"""
+    """将 ControlNet 全身参考图上传到 Mosaic 服务器"""
     try:
         comfyui = getattr(builder, 'comfyui', None)
         if not comfyui:
             logger.debug("builder 无 comfyui 引用，跳过 ControlNet 参考图上传")
             return
-        from infra.storage.asset_tracker import AssetTracker, comfyui_asset_name
-        remote_name = comfyui_asset_name(project_dir, char_id, os.path.basename(local_path))
+        from infra.storage.asset_tracker import AssetTracker, mosaic_asset_name
+        remote_name = mosaic_asset_name(project_dir, char_id, os.path.basename(local_path))
         AssetTracker(project_dir).upload_if_needed(comfyui, local_path, remote_name, comfyui.url)
         logger.debug(f"ControlNet 参考图已上传: {remote_name}")
     except Exception as e:
@@ -194,9 +194,9 @@ def update_existing_ip_adapter(builder: object, wf: dict, char_names: list[str],
     name_to_id = getattr(builder, '_char_name_to_id', {})
     project_dir = getattr(builder, 'project_dir', '')
     if primary_refs and char_nodes:
-        from infra.storage.asset_tracker import comfyui_asset_name
+        from infra.storage.asset_tracker import mosaic_asset_name
         resolved_id = name_to_id.get(primary_name, primary_name)
-        wf[char_nodes[0]]["inputs"]["image"] = comfyui_asset_name(
+        wf[char_nodes[0]]["inputs"]["image"] = mosaic_asset_name(
             project_dir, resolved_id, os.path.basename(primary_refs[0]))
 
     if len(char_names) > 1:
@@ -376,7 +376,7 @@ def _check_face_detectable(ref_image: str) -> bool:
     """轻量检查参考图是否含可检测的人脸（InsightFace）
 
     返回 True 表示检测到人脸，False 表示未检测到。
-    InsightFace 不可用时返回 True（不阻断，让 ComfyUI 端处理）。
+    InsightFace 不可用时返回 True（不阻断，让 Mosaic 后端处理）。
     使用模块级单例缓存 FaceAnalysis，避免每次调用重新加载模型。
     模型未预下载时跳过检查，避免在任务中触发极慢的 GitHub 下载。
     """
@@ -473,8 +473,8 @@ def _inject_pulid_nodes(wf: dict, ksampler: str, model_source: str,
                         ref_image: str, config: dict, weight: float, suffix: int,
                         project_dir: str = "", char_id: str = "") -> dict:
     """创建 PuLID-Flux 节点子图并连接到 KSampler"""
-    from infra.storage.asset_tracker import comfyui_asset_name
-    ref_name = comfyui_asset_name(project_dir, char_id, os.path.basename(ref_image)) if project_dir else os.path.basename(ref_image)
+    from infra.storage.asset_tracker import mosaic_asset_name
+    ref_name = mosaic_asset_name(project_dir, char_id, os.path.basename(ref_image)) if project_dir else os.path.basename(ref_image)
     nodes = {
         f"pulid_model_{suffix}": {
             "class_type": "PulidFluxModelLoader",
@@ -550,8 +550,8 @@ def inject_pulid_flux_chain(wf: dict, char_id: str, ref_images: list[str],
     new_load = f"pulid_ref2_{char_id}_{s}"
     new_apply = f"pulid_apply2_{char_id}_{s}"
 
-    from infra.storage.asset_tracker import comfyui_asset_name
-    ref_name = comfyui_asset_name(project_dir, char_id, os.path.basename(ref_images[0])) if project_dir else os.path.basename(ref_images[0])
+    from infra.storage.asset_tracker import mosaic_asset_name
+    ref_name = mosaic_asset_name(project_dir, char_id, os.path.basename(ref_images[0])) if project_dir else os.path.basename(ref_images[0])
     wf[new_load] = {
         "class_type": "LoadImage",
         "inputs": {"image": ref_name}
@@ -590,13 +590,13 @@ def find_character_lora(builder: object, char_id: str) -> str | None:
 
     char_id: 角色名或 hash ID。自动通过 builder 的映射转换。
 
-    搜索顺序：comfyui_asset_name 规范名 → 原始名 → 角色 lora 子目录。
+    搜索顺序：mosaic_asset_name 规范名 → 原始名 → 角色 lora 子目录。
     """
     # name → hash ID
     resolved_id = builder._char_name_to_id.get(char_id, char_id)
     lora_dir = builder._paths.loras_dir
-    from infra.storage.asset_tracker import comfyui_asset_name
-    lora_name = comfyui_asset_name(builder.project_dir, resolved_id, f"{resolved_id}_lora.safetensors")
+    from infra.storage.asset_tracker import mosaic_asset_name
+    lora_name = mosaic_asset_name(builder.project_dir, resolved_id, f"{resolved_id}_lora.safetensors")
     candidates = [
         lora_dir / lora_name,
         lora_dir / f"{resolved_id}_lora.safetensors",
@@ -637,7 +637,7 @@ def find_style_lora(builder: object, genre: str) -> str | None:
 def _rewire_clip_to_text_encoders(wf: dict, ksampler: str, source_node: str) -> None:
     """将 source_node 的 clip 输出连到 KSampler 引用的所有 CLIPTextEncode 节点
 
-    KSampler 不接受 clip 输入（ComfyUI v0.24+），clip 应连到 CLIPTextEncode
+    KSampler 不接受 clip 输入（ComfyUI API 格式 v0.24+），clip 应连到 CLIPTextEncode
     用于编码 prompt。此函数自动找到 KSampler positive/negative（或 XlabsSampler
     conditioning/neg_conditioning）引用的 CLIPTextEncode 节点并重定向其 clip 输入。
     """
@@ -679,8 +679,8 @@ def inject_lora(wf: dict, lora_path: str, strength: float = 0.7,
     注意: 就地修改 wf，调用方需确保已 deepcopy。
 
     Args:
-        lora_name: ComfyUI 服务端的 LoRA 文件名。由调用方决定命名策略：
-            - 字符 LoRA: comfyui_asset_name()（带 project hash 防跨项目碰撞）
+        lora_name: Mosaic 服务端的 LoRA 文件名。由调用方决定命名策略：
+            - 字符 LoRA: mosaic_asset_name()（带 project hash 防跨项目碰撞）
             - 风格 LoRA: os.path.basename()（用户手动放置，保持原名）
             - None: 回退到 os.path.basename()
     """
@@ -748,7 +748,7 @@ def inject_controlnet_depth(builder: object, wf: dict, char_names: list[str],
     从角色全身参考图生成 depth map，通过 ControlNet 强制身体结构一致。
     支持多角色：主角色 full strength，次要角色降权。
 
-    需要 ComfyUI 安装：
+    需要安装以下 ComfyUI 自定义节点（Mosaic 后端兼容）：
     - comfyui_controlnet_aux（提供 MiDaS-DepthMapPreprocessor 深度估计节点）
     - x-flux-comfyui（XLabs 提供 LoadFluxControlNet / ApplyFluxControlNet 节点）
 
@@ -796,7 +796,7 @@ def inject_controlnet_depth(builder: object, wf: dict, char_names: list[str],
         # 使用通用辅助函数创建参考图节点
         ref_node = _create_ref_nodes(wf, [str(full_body_ref)], "controlnet_ref", suffix, project_dir, resolved_id)
 
-        # 上传全身参考图到 ComfyUI（ControlNet Depth 在工作流中引用它）
+        # 上传全身参考图到 Mosaic（ControlNet Depth 在工作流中引用它）
         _upload_controlnet_ref(builder, str(full_body_ref), project_dir, resolved_id)
 
         # 次要角色降权

@@ -178,26 +178,23 @@ async function deleteSceneWithRef(id) {
 // ── 3.4 配置预设模板 ──
 
 const CONFIG_PRESETS = {
-  local_comfyui: {
+  local_mosaic: {
     tts: { backend: 'mosaic', url: '' },
-    lipsync: { backend: 'sadtalker', url: 'http://127.0.0.1:7860' },
-    comfyui: { url: 'http://127.0.0.1:8188', api_key: '' },
+    lipsync: { backend: 'mosaic' },
     image_backend: 'sd15', video_backend: 'animatediff',
-    llm: { enabled: false, backend: 'ollama', base_url: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', api_key: '' },
+    llm: { enabled: true, backend: 'mosaic', model: 'default' },
   },
   cloud_siliconflow: {
     tts: { backend: 'mosaic', url: '' },
-    lipsync: { backend: 'musetalk', url: 'http://127.0.0.1:7860' },
-    comfyui: { url: 'http://127.0.0.1:8188', api_key: '' },
+    lipsync: { backend: 'mosaic' },
     image_backend: 'sd15', video_backend: 'animatediff',
-    llm: { enabled: true, backend: 'openai', base_url: 'https://api.siliconflow.cn/v1', model: 'Qwen/Qwen2.5-7B-Instruct', api_key: '' },
+    llm: { enabled: true, backend: 'mosaic', model: 'default' },
   },
   ollama_local: {
     tts: { backend: 'mosaic', url: '' },
-    lipsync: { backend: 'musetalk', url: 'http://127.0.0.1:7860' },
-    comfyui: { url: 'http://127.0.0.1:8188', api_key: '' },
+    lipsync: { backend: 'mosaic' },
     image_backend: 'sd15', video_backend: 'animatediff',
-    llm: { enabled: true, backend: 'ollama', base_url: 'http://127.0.0.1:11434', model: 'qwen2.5:7b', api_key: '' },
+    llm: { enabled: true, backend: 'mosaic', model: 'default' },
   },
 };
 
@@ -213,12 +210,7 @@ function applyPreset(key) {
   const lsSel = document.getElementById('cfg-lipsync');
   if (lsSel) { lsSel.value = p.lipsync.backend; }
   const lsUrl = document.getElementById('cfg-lipsync-url');
-  if (lsUrl) lsUrl.value = p.lipsync.url;
-  // ComfyUI
-  const cuUrl = document.getElementById('cfg-comfyui');
-  if (cuUrl) cuUrl.value = p.comfyui.url;
-  const cuKey = document.getElementById('cfg-comfyui-key');
-  if (cuKey) cuKey.value = p.comfyui.api_key || '';
+  if (lsUrl) lsUrl.value = p.lipsync.url || '';
   // Image / Video backend
   const imgSel = document.getElementById('cfg-image-backend');
   if (imgSel && p.image_backend) imgSel.value = p.image_backend;
@@ -229,8 +221,6 @@ function applyPreset(key) {
   if (llmEnabled) llmEnabled.value = String(p.llm.enabled);
   const llmBackend = document.getElementById('cfg-llm-backend');
   if (llmBackend) llmBackend.value = p.llm.backend;
-  const llmUrl = document.getElementById('cfg-llm-url');
-  if (llmUrl) llmUrl.value = p.llm.base_url;
   const llmModel = document.getElementById('cfg-llm-model');
   if (llmModel) llmModel.value = p.llm.model;
   toast(t('set.preset_applied'));

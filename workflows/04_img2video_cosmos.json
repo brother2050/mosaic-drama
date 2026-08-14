@@ -145,7 +145,7 @@
   },
   "38": {
     "inputs": {
-      "filename_prefix": "video/ComfyUI",
+      "filename_prefix": "video/mosaic",
       "format": "auto",
       "codec": "auto",
       "video": [

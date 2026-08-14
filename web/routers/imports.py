@@ -228,9 +228,9 @@ def training_status(char_id: str) -> dict:
     _check_id(char_id, "角色 ID")
     p = _paths()
     project = str(p.root)
-    from infra.storage.asset_tracker import comfyui_asset_name
+    from infra.storage.asset_tracker import mosaic_asset_name
     lora_dir = p.loras_dir
-    lora_name = comfyui_asset_name(project, char_id, f"{char_id}_lora.safetensors")
+    lora_name = mosaic_asset_name(project, char_id, f"{char_id}_lora.safetensors")
     candidates = [
         lora_dir / lora_name,
         lora_dir / f"{char_id}_lora.safetensors",

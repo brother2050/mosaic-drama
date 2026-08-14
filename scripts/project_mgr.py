@@ -30,7 +30,7 @@ def get_presets() -> tuple[dict, dict]:
 # 默认项目配置模板
 _DEFAULT_PROJECT_YAML = """\
 # AI 短剧管线 v2 — 项目配置
-# 系统级配置（ComfyUI、TTS、LLM 等）请编辑 config/system.yaml
+# 系统级配置（Mosaic、TTS、LLM 等）请编辑 config/system.yaml
 
 project:
   name: "{name}"
@@ -45,7 +45,7 @@ project:
 #   auto_outfit: false  # 管线自动生成 outfit 参考图（默认 true，设为 false 仅生成主图）
 
 # 项目级覆盖（可选，取消注释可覆盖系统配置）
-# comfyui:
+# mosaic:
 #   url: "http://192.168.1.100:8188"
 # llm:
 #   enabled: true
@@ -284,11 +284,11 @@ def _cleanup_project_db(project_dir: Path) -> None:
 
     try:
         from infra.database._db import project_scope
-        from infra.database.comfyui_assets import delete_by_project as _del_assets
+        from infra.database.mosaic_assets import delete_by_project as _del_assets
 
-        # comfyui_assets（按 project 名称匹配）
+        # mosaic_assets（按 project 名称匹配）
         _del_assets(pool, proj_name)
-        logger.info(f"  清理 comfyui_assets: {proj_str}")
+        logger.info(f"  清理 mosaic_assets: {proj_str}")
 
         with project_scope(proj_name):
             # 1. 直接按 project 删除所有 DB 记录（不依赖 YAML 文件）

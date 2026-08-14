@@ -1,12 +1,12 @@
 # 剧本导入功能 — 设计文档
 
-> 在 DeepSeek / Kimi / 豆包 / MiMo Pro 等 AI 对话平台提取剧本为 JSON，上传导入，一键生成可直接运行的短剧项目。
+> 在 Mosaic 离线 LLM 或其他 AI 对话平台提取剧本为 JSON，上传导入，一键生成可直接运行的短剧项目。
 
 ---
 
 ## 一、目标
 
-用户在 AI 对话平台（DeepSeek / Kimi / 豆包 / MiMo Pro 等）将剧本粘贴给 AI，AI 输出结构化 JSON，用户复制 JSON 后上传到本系统导入。
+用户在 AI 对话平台（Mosaic 离线 LLM 或其他 AI 对话平台）将剧本粘贴给 AI，AI 输出结构化 JSON，用户复制 JSON 后上传到本系统导入。
 
 **核心原则：格式交给三方平台，本地只管接收。**
 
@@ -553,7 +553,7 @@ def get_translation_status(plan: ImportPlan) -> dict:
 
 ### 9.1 使用方式
 
-1. 打开 DeepSeek / Kimi / 豆包 / MiMo Pro 等 AI 对话平台
+1. 打开 AI 对话平台
 2. 复制下方提示词模板，粘贴到对话框
 3. 将 `{剧本内容}` 替换为你的实际剧本
 4. 将 `{项目名}` / `{风格}` / `{题材}` / `{时长}` 替换为实际值
@@ -670,15 +670,15 @@ def get_translation_status(plan: ImportPlan) -> dict:
 
 ### 9.3 快速填写示例
 
-假设用户要导入一个都市爱情短剧（30 分钟，约 200 个镜头），使用 MiMo Pro 时的操作步骤：
+假设用户要导入一个都市爱情短剧（30 分钟，约 200 个镜头），使用 AI 对话平台时的操作步骤：
 
 **第 1 轮（角色 + 场景 + 镜头 001-050）：**
 
-1. 打开 MiMo Pro
+1. 打开 AI 对话平台
 2. 粘贴上方「第 1 轮」模板
 3. 修改占位符：`{项目名}` → `都市恋歌`，`{风格}` → `cinematic`，`{题材}` → `romance`，`{时长}` → `1800`
 4. 在末尾粘贴实际剧本内容
-5. 发送，等待 MiMo Pro 输出 JSON
+5. 发送，等待 AI 输出 JSON
 6. 全选复制 JSON 文本
 7. 保存为 `batch1.json`，执行：`drama import batch1.json`
 

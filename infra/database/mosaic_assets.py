@@ -1,6 +1,6 @@
-"""ComfyUI 资源跟踪 — PostgreSQL 持久化
+"""Mosaic 资源跟踪 — PostgreSQL 持久化
 
-跟踪哪些文件已上传到哪些 ComfyUI 服务器，避免重复上传或遗漏。
+跟踪哪些文件已上传到哪些 Mosaic 后端服务器，避免重复上传或遗漏。
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ def check(pool, server_url: str, asset_type: str, filename: str, project: str | 
     project = project or _get_project()
     with query(pool, commit=False) as cur:
         cur.execute(
-            "SELECT 1 FROM comfyui_assets "
+            "SELECT 1 FROM mosaic_assets "
             "WHERE project = %s AND server_url = %s AND asset_type = %s AND filename = %s",
             (project, server_url, asset_type, filename),
         )
@@ -26,7 +26,7 @@ def mark(pool, server_url: str, asset_type: str, filename: str, project: str | N
     project = project or _get_project()
     with query(pool) as cur:
         cur.execute(
-            "INSERT INTO comfyui_assets (project, server_url, asset_type, filename) "
+            "INSERT INTO mosaic_assets (project, server_url, asset_type, filename) "
             "VALUES (%s, %s, %s, %s) "
             "ON CONFLICT (project, server_url, asset_type, filename) DO NOTHING",
             (project, server_url, asset_type, filename),
@@ -38,7 +38,7 @@ def unmark(pool, server_url: str, asset_type: str, filename: str, project: str |
     project = project or _get_project()
     with query(pool) as cur:
         cur.execute(
-            "DELETE FROM comfyui_assets "
+            "DELETE FROM mosaic_assets "
             "WHERE project = %s AND server_url = %s AND asset_type = %s AND filename = %s",
             (project, server_url, asset_type, filename),
         )
@@ -48,4 +48,4 @@ def delete_by_project(pool, project: str | None = None):
     """删除项目的所有资产记录"""
     project = project or _get_project()
     with query(pool) as cur:
-        cur.execute("DELETE FROM comfyui_assets WHERE project = %s", (project,))
+        cur.execute("DELETE FROM mosaic_assets WHERE project = %s", (project,))

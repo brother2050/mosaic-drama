@@ -6,5 +6,5 @@
   schema.py     — 建表
   storyboard_db.py — 分镜表 CRUD
   generation.py — 生成状态
-  comfyui_assets.py — ComfyUI 资产跟踪
+  mosaic_assets.py — Mosaic 资产跟踪
 """

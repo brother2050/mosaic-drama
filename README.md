@@ -9,21 +9,19 @@
 | 特性 | 说明 |
 |------|------|
 | **纯 Python** | 零 Shell 脚本，Windows/macOS/Linux 通用 |
-| **API 优先** | 所有三方工具通过 HTTP API 调用，无需本地 GPU |
+| **Mosaic 离线** | 所有 AI 能力（图像/视频/LLM/TTS/口型同步）由 Mosaic 框架离线提供，无需在线 API 调用 |
 | **Celery 异步** | Redis + Celery 任务队列，前端实时进度反馈 |
 | **一键启动** | `drama serve` + `drama worker` |
 | **注册表驱动** | `models_registry.yaml` 统一管理所有后端元数据，新增后端只改 YAML |
 | **DI 容器** | 后端自注册 + 按需创建 + 热重载 + 懒加载 |
 | **人性化工作台** | 内联编辑、撤销重做、批量执行、资源预览 |
 | **多语言界面** | 中文/English 双语支持 |
-| **Seko 策划案** | 集成 seko.sensetime.com 影视策划案生成/修改 |
-| **IP-Adapter Plus** | 基于 ip-adapter-plus-face 模型的角色面部一致性（SD1.5/SDXL 后端） |
-| **PuLID-Flux** | 基于 PuLID 的 Flux 面部一致性（Flux 后端，推荐） |
-| **Flux IP-Adapter FaceID** | Shakker-Labs IP-Adapter FaceID Plus（Flux 身份加固，InsightFace + CLIP 双锚定） |
-| **自动节点检测** | 启动时自动查询 ComfyUI /object_info，一致性方案按可用节点动态跳过 |
+| **Seko 策划案** | 集成影视策划案生成/修改（Mosaic 离线 LLM 驱动） |
+| **Mosaic 内置一致性** | Mosaic 框架内置角色面部/身体一致性方案（IP-Adapter/PuLID 等），无需额外安装自定义节点 |
+| **框架导入检测** | 启动时自动检测 Mosaic 框架已导入的能力，一致性方案按可用能力动态跳过 |
 | **声线库** | 1000 种声线一键选用，搜索/试听/分配到角色 |
 | **安全加固** | 输入校验、路径遍历防护、速率限制 |
-| **防御式后端** | AIToolkitTrainer / ComfyUI / VideoBase 全部标准化 health_check + shutdown |
+| **防御式后端** | AIToolkitTrainer / Mosaic / VideoBase 全部标准化 health_check + shutdown |
 
 ---
 
@@ -61,206 +59,66 @@ pip install -e ".[all]"
 
 </details>
 
-### 3. 下载基础模型（按选择的后端）
+### 3. 安装 Mosaic 框架（图像/视频/LLM 后端）
 
-> 项目启动前必须下载至少一个图像后端的基础模型。模型放到 `ComfyUI/models/` 对应子目录。
+> 项目已从在线 API（ComfyUI/OpenAI/MuseTalk 等）迁移到 **Mosaic 框架的离线方法**。Mosaic 统一管理图像生成、视频生成、LLM、TTS、口型同步等所有后端，无需单独部署 ComfyUI 或申请任何在线 API Key。
+>
+> Mosaic 后端仍解析 ComfyUI 格式的 JSON 工作流模板（位于 `workflows/` 目录），因此工作流模板的编写/调试方式与 ComfyUI 一致，但运行时由 Mosaic 离线执行。
 
-#### 📌 模型下载总览
+#### 3.1 安装 Mosaic
 
-| 后端 | UNet / Checkpoint | CLIP | VAE | 显存需求 |
-|------|-------------------|------|-----|---------|
-| **Cosmos（默认推荐）** | `cosmos_predict2_2B_t2i.safetensors` | `oldt5_xxl_fp8_e4m3fn_scaled.safetensors` | `wan_2.1_vae.safetensors` | ~12GB |
-| **Flux** | `flux1-dev.safetensors` | `clip_l.safetensors` + `t5xxl_fp16.safetensors` | Flux 自带 | **≥32GB** |
-| **Flux FP8** | `flux1-dev-fp8.safetensors` | `clip_l.safetensors` + `t5xxl_fp8_e4m3fn_scaled.safetensors` | Flux 自带 | ~16GB |
-| **SD1.5** | `v1-5-pruned-emaonly.safetensors` | Checkpoint 自带 | Checkpoint 自带 | ~6GB |
-| **CogVideoX（可选）** | `cogvideox-5b.safetensors` | `t5xxl_fp16.safetensors` | `cogvideox_vae.safetensors` | ≥24GB |
-| **HiDream（可选）** | `hidream_e1_full_bf16.safetensors` | 四重 CLIP（见下文） | `ae.sft` | ≥24GB |
+```bash
+# 基础安装已包含 Mosaic 依赖（见上一节 pip install -e .）
+# 如需单独安装/升级最新版 Mosaic：
+pip install mosaic-framework
+```
+
+#### 3.2 模型管理
+
+Mosaic 框架在首次运行时自动下载并缓存所需模型（Flux / Cosmos / SD1.5 / CogVideoX / HiDream 等），模型统一存放在 Mosaic 自己的模型目录中，**无需手动下载到 `ComfyUI/models/`**。
+
+| 后端 | 推荐显存 | 说明 |
+|------|---------|------|
+| **Flux（默认）** | ≥32GB | 顶级画质（fp16） |
+| **Cosmos** | ~12GB | 文本到图像，性价比最高 |
+| **SD1.5** | ~6GB | 入门级，显存友好 |
+| **CogVideoX（可选）** | ≥24GB | 高质量视频生成 |
+| **HiDream（可选）** | ≥24GB | 高质量图像重绘 |
 
 > **GPU 兼容性速查**：
 >
 > | GPU | 显存 | 推荐后端 | 说明 |
 > |-----|------|---------|------|
-> | T4 | 16GB | Cosmos / SD1.5 / Flux FP8 | Flux fp16 不行 |
-> | A10 | 24GB | Cosmos / SD1.5 / Flux FP8 | Flux fp16 不行 |
-> | V100-32G | 32GB | Flux / Flux FP8 / Cosmos | Flux fp16 可用，fp8 更省 |
+> | T4 | 16GB | Cosmos / SD1.5 | Flux fp16 不行 |
+> | A10 | 24GB | Cosmos / SD1.5 | Flux fp16 不行 |
+> | V100-32G | 32GB | Flux / Cosmos | Flux fp16 可用 |
 > | A100-40G | 40GB | Flux fp16 / Cosmos | 全部后端可用 |
 > | A100-80G | 80GB | 全部 | 无限制 |
 
-#### 方案 A：Cosmos 后端（推荐，12GB 显存即可）
+#### 3.3 切换后端
 
-```bash
-# 1. UNet 模型 → ComfyUI/models/diffusion_models/
-mkdir -p ComfyUI/models/diffusion_models/
-wget -O ComfyUI/models/diffusion_models/cosmos_predict2_2B_t2i.safetensors \
-  https://huggingface.co/nvidia/Cosmos-Predict2-2B-Text2Image/resolve/main/cosmos_predict2_2B_t2i.safetensors
+在 `config/system.yaml` 中切换图像/视频后端，Mosaic 会自动加载对应模型：
 
-# 2. CLIP 模型（T5-XXL FP8）→ ComfyUI/models/clip/
-mkdir -p ComfyUI/models/clip/
-wget -O ComfyUI/models/clip/oldt5_xxl_fp8_e4m3fn_scaled.safetensors \
-  https://huggingface.co/nvidia/Cosmos-Predict2-2B-Text2Image/resolve/main/oldt5_xxl_fp8_e4m3fn_scaled.safetensors
-
-# 3. VAE → ComfyUI/models/vae/
-mkdir -p ComfyUI/models/vae/
-wget -O ComfyUI/models/vae/wan_2.1_vae.safetensors \
-  https://huggingface.co/nvidia/Cosmos-Predict2-2B-Text2Image/resolve/main/wan_2.1_vae.safetensors
+```yaml
+models:
+  image_backend: "flux"        # flux / cosmos / sd15 / hidream
+  video_backend: "cosmos-video" # cosmos-video / animatediff / cogvideox
 ```
 
-> **Cosmos 视频生成**（可选，用于 `cosmos-video` 视频后端）：
-> ```bash
-> wget -O ComfyUI/models/diffusion_models/cosmos_predict2_2B_video2world_480p_16fps.safetensors \
->   https://huggingface.co/nvidia/Cosmos-Predict2-2B-Video2World/resolve/main/cosmos_predict2_2B_video2world_480p_16fps.safetensors
-> ```
+> 工作流模板仍位于 `workflows/` 目录（ComfyUI 格式 JSON），由 Mosaic 后端解析执行。新增/修改工作流时按 ComfyUI 节点格式编写即可。
 
-#### 方案 B：Flux 后端（≥32GB 显存）
-
-```bash
-# 1. UNet 模型 → ComfyUI/models/diffusion_models/（或 ComfyUI/models/unet/）
-mkdir -p ComfyUI/models/diffusion_models/
-wget -O ComfyUI/models/diffusion_models/flux1-dev.safetensors \
-  https://huggingface.co/Comfy-Org/flux1-dev/resolve/main/flux1-dev.safetensors
-
-# 2. CLIP 模型 → ComfyUI/models/clip/
-mkdir -p ComfyUI/models/clip/
-wget -O ComfyUI/models/clip/clip_l.safetensors \
-  https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors
-wget -O ComfyUI/models/clip/t5xxl_fp16.safetensors \
-  https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp16.safetensors
-
-# 3. VAE：Flux UNet 自带 VAE，无需单独下载
-```
-
-> **FP8 省显存版**（T4/A10 推荐，显存从 32GB+ 降到 ~16GB，使用 `flux-fp8` 后端）：
-> ```bash
-> # UNet 用 FP8 替代 FP16，CLIP 也用 FP8 版
-> wget -O ComfyUI/models/diffusion_models/flux1-dev-fp8.safetensors \
->   https://huggingface.co/Kijai/flux-fp8/resolve/main/flux1-dev-fp8.safetensors
-> wget -O ComfyUI/models/clip/clip_l.safetensors \
->   https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors
-> wget -O ComfyUI/models/clip/t5xxl_fp8_e4m3fn_scaled.safetensors \
->   https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn_scaled.safetensors
-> ```
-> 下载后在 `config/system.yaml` 中设置 `models.image_backend: flux-fp8`。
-
-> **Flux 写实 LoRA**（推荐下载，放入 `ComfyUI/models/loras/`）：
-> ```bash
-> # flux-RealismLora（超写实人像）
-> wget -O ComfyUI/models/loras/flux-realism-lora.safetensors \
->   https://huggingface.co/XLabs-AI/flux-RealismLora/resolve/main/flux-realism-lora.safetensors
-> # ACE++ Portrait（零训练角色一致性）
-> wget -O ComfyUI/models/loras/comfyui_portrait_lora64.safetensors \
->   https://huggingface.co/ali-vilab/ACE_Plus/resolve/main/portrait/comfyui_portrait_lora64.safetensors
-> ```
-
-#### 方案 C：SD1.5 后端（≥6GB 显存，入门级）
-
-```bash
-# 1. Checkpoint 模型 → ComfyUI/models/checkpoints/
-mkdir -p ComfyUI/models/checkpoints/
-wget -O ComfyUI/models/checkpoints/v1-5-pruned-emaonly.safetensors \
-  https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors
-
-# 2. AnimateDiff 运动模块（视频生成必须）→ ComfyUI/models/animatediff/
-mkdir -p ComfyUI/models/animatediff/
-wget -O ComfyUI/models/animatediff/mm_sd_v15_v2.ckpt \
-  https://huggingface.co/guoyww/animatediff/resolve/main/mm_sd_v15_v2.ckpt
-```
-
-> SD1.5 的 CLIP 和 VAE 内嵌在 Checkpoint 中，无需单独下载。
-> AnimateDiff 运动模块用于视频生成（生产阶段），不装则无法生成镜头视频。
-
-#### 方案 D：CogVideoX 视频后端（可选，≥24GB 显存）
-
-> CogVideoX 是智谱 AI 开源的视频生成模型，效果优于 AnimateDiff，适合高质量镜头视频生成。
-> 需要安装 ComfyUI-CogVideoXWrapper 自定义节点：
-> ```bash
-> cd ComfyUI/custom_nodes/
-> git clone https://github.com/kijai/ComfyUI-CogVideoXWrapper.git
-> # 重启 ComfyUI
-> ```
-
-```bash
-# 1. UNet 模型 → ComfyUI/models/diffusion_models/
-mkdir -p ComfyUI/models/diffusion_models/
-wget -O ComfyUI/models/diffusion_models/cogvideox-5b.safetensors \
-  https://huggingface.co/THUDM/CogVideoX-5b/resolve/main/cogvideox-5b.safetensors
-
-# 2. CLIP 模型（T5-XXL）→ ComfyUI/models/clip/
-wget -O ComfyUI/models/clip/t5xxl_fp16.safetensors \
-  https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp16.safetensors
-
-# 3. VAE → ComfyUI/models/vae/
-wget -O ComfyUI/models/vae/cogvideox_vae.safetensors \
-  https://huggingface.co/THUDM/CogVideoX-5b/resolve/main/vae/cogvideox_vae.safetensors
-```
-
-> 下载后在 `config/system.yaml` 中设置 `models.video_backend: cogvideox`。
-
-#### 方案 E：HiDream 图像后端（可选，≥24GB 显存）
-
-> HiDream 是一个高质量图像生成模型，支持 img2img 模式（基于首帧重绘）。
-> 需要安装 ComfyUI-HiDream 自定义节点：
-> ```bash
-> cd ComfyUI/custom_nodes/
-> git clone https://github.com/SHYuanBest/ComfyUI-HiDream.git
-> # 重启 ComfyUI
-> ```
-
-```bash
-# 1. UNet 模型 → ComfyUI/models/diffusion_models/
-mkdir -p ComfyUI/models/diffusion_models/
-wget -O ComfyUI/models/diffusion_models/hidream_e1_full_bf16.safetensors \
-  https://huggingface.co/HiDream-ai/HiDream-E1-Full/resolve/main/hidream_e1_full_bf16.safetensors
-
-# 2. 四重 CLIP 文本编码器 → ComfyUI/models/text_encoders/
-mkdir -p ComfyUI/models/text_encoders/
-wget -O ComfyUI/models/text_encoders/clip_g_hidream.safetensors \
-  https://huggingface.co/HiDream-ai/HiDream-I1-Full/resolve/main/clip_g_hidream.safetensors
-wget -O ComfyUI/models/text_encoders/clip_l_hidream.safetensors \
-  https://huggingface.co/HiDream-ai/HiDream-I1-Full/resolve/main/clip_l_hidream.safetensors
-wget -O ComfyUI/models/text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors \
-  https://huggingface.co/HiDream-ai/HiDream-I1-Full/resolve/main/t5xxl_fp8_e4m3fn_scaled.safetensors
-wget -O ComfyUI/models/text_encoders/llama_3.1_8b_instruct_fp8_scaled.safetensors \
-  https://huggingface.co/HiDream-ai/HiDream-I1-Full/resolve/main/llama_3.1_8b_instruct_fp8_scaled.safetensors
-
-# 3. VAE（Flux 同款）→ ComfyUI/models/vae/
-# 如果已下载 Flux 的 ae.sft 可跳过
-```
-
-> 下载后在 `config/system.yaml` 中设置 `models.image_backend: hidream`。
-
-#### 📁 目录结构参考
+#### 📁 工作流模板目录参考
 
 ```
-ComfyUI/models/
-├── diffusion_models/     # UNet 模型（Flux / Cosmos / CogVideoX / HiDream）
-│   ├── flux1-dev.safetensors
-│   ├── cosmos_predict2_2B_t2i.safetensors
-│   ├── cosmos_predict2_2B_video2world_480p_16fps.safetensors
-│   ├── cogvideox-5b.safetensors
-│   └── hidream_e1_full_bf16.safetensors
-├── checkpoints/          # SD1.5 Checkpoint
-│   └── v1-5-pruned-emaonly.safetensors
-├── animatediff/          # AnimateDiff 运动模块（SD1.5 视频生成）
-│   └── mm_sd_v15_v2.ckpt
-├── clip/                 # 文本编码器（Flux / Cosmos / CogVideoX）
-│   ├── clip_l.safetensors
-│   ├── t5xxl_fp16.safetensors
-│   ├── t5xxl_fp8_e4m3fn_scaled.safetensors
-│   └── oldt5_xxl_fp8_e4m3fn_scaled.safetensors
-├── text_encoders/        # 文本编码器（HiDream 四重 CLIP）
-│   ├── clip_g_hidream.safetensors
-│   ├── clip_l_hidream.safetensors
-│   ├── t5xxl_fp8_e4m3fn_scaled.safetensors
-│   └── llama_3.1_8b_instruct_fp8_scaled.safetensors
-├── vae/                  # VAE 解码器
-│   ├── wan_2.1_vae.safetensors       # Cosmos
-│   └── cogvideox_vae.safetensors     # CogVideoX
-├── ipadapter/            # IP-Adapter 模型（SD1.5/SDXL，第 6 节）
-├── ipadapter-flux/       # Flux IP-Adapter FaceID 模型（第 8.5 节）
-├── pulid/                # PuLID-Flux 模型（第 7 节）
-├── clip_vision/          # CLIP Vision 编码器
-├── insightface/          # InsightFace 人脸模型
-└── loras/                # LoRA 模型（训练产出）
+workflows/                     # 工作流模板（ComfyUI 格式 JSON，由 Mosaic 解析执行）
+├── 01_first_frame_sd15.json   #   SD1.5 首帧
+├── 01_first_frame_flux.json   #   Flux 首帧
+├── 01_first_frame_flux_fp8.json  # Flux FP8 首帧
+├── cosmos_predict2_2B_t2i.json   # Cosmos 首帧
+├── 02_img2video.json          #   AnimateDiff 视频
+├── 03_img2video_cogvideo.json #   CogVideoX 视频
+├── 04_img2video_cosmos.json   #   Cosmos 视频
+└── 05_img2img_hidream.json    #   HiDream img2img
 ```
 
 ### 4. 启动 Redis + PostgreSQL（必选）
@@ -319,9 +177,7 @@ sudo -u postgres psql -c "GRANT ALL ON DATABASE ai_drama TO drama;"
 cp .env.example .env
 # 编辑 .env，必填:
 #   AI_DRAMA_DB_DSN=postgresql://drama:drama123@127.0.0.1:5432/ai_drama
-#   SEKO_API_KEY=（影视策划案，可选）
-# TTS 使用 Mosaic 离线语音合成，无需 API Key
-# 获取 SEKO_API_KEY: https://seko.sensetime.com/explore
+# TTS / LLM / 图像 / 视频均使用 Mosaic 离线后端，无需任何 API Key
 ```
 
 ### 6. 启动
@@ -340,28 +196,18 @@ drama serve
 
 > **并发数说明**：默认 concurrency=2，个人使用推荐 2-4。
 >
-> 主生产流程（镜头生产）内部是逐镜头串行执行的，concurrency 设置不影响主流程速度。并发数主要影响 Web 工作台中多个操作同时提交时的响应（如同时生成定妆照和场景图）。外部服务（ComfyUI/TTS）通常是单实例单任务，设置过高的并发不会加速反而浪费内存。
+> 主生产流程（镜头生产）内部是逐镜头串行执行的，concurrency 设置不影响主流程速度。并发数主要影响 Web 工作台中多个操作同时提交时的响应（如同时生成定妆照和场景图）。Mosaic 离线后端（图像/TTS）通常是单实例单任务，设置过高的并发不会加速反而浪费内存。
 >
 > ```bash
 > drama worker -c 2   # 默认，省资源
 > drama worker -c 4   # Web 操作较多时推荐
 > ```
 
-### 7. IP-Adapter Plus（角色面部一致性，可选但强烈推荐）
+### 7. Mosaic 内置一致性方案（角色面部/身体一致性）
 
-> 基于 [ComfyUI_IPAdapter_plus](https://github.com/cubiq/ComfyUI_IPAdapter_plus) 实现跨镜头角色面部一致性。安装后定妆照的面部特征会通过 IP-Adapter 注入到每个镜头的首帧生成中，大幅提升同一角色在不同镜头间的辨识度。
-
-#### ⚠️ 后端兼容性
-
-| 图像后端 | 架构 | 可用一致性方案 | 说明 |
-|---------|------|:-------------:|------|
-| `flux` | DiT | **PuLID-Flux + Flux IP-Adapter FaceID** | **推荐**，双层管道：PuLID 做主锚定 + FaceID IP-Adapter 加固 |
-| `sd15` | UNet | IP-Adapter Plus | 成熟稳定，面部一致性好 |
-| `cosmos` | DiT | 无 | 仅 LoRA 训练 |
-
-> Flux 后端默认启用 `flux_identity` **一致性管道**：PuLID-Flux（Layer 1）→ Flux IP-Adapter FaceID（Layer 2），两层叠加实现最强的身份保持。若 ComfyUI 缺少 FaceID 插件，自动降级为纯 PuLID。
+> 项目已移除 ComfyUI 自定义节点（IPAdapter/PuLID/ControlNet 等）的安装说明。Mosaic 框架内置角色面部与身体一致性方案，无需单独下载 IP-Adapter / PuLID / InsightFace / ControlNet 模型，也无需克隆任何 ComfyUI 自定义节点仓库。
 >
-> 一致性方案与后端**独立配置**，通过 `consistency_method` 字段选择：
+> 定妆照的面部特征会通过一致性方案注入到每个镜头的首帧生成中，大幅提升同一角色在不同镜头间的辨识度。一致性方案与图像后端**独立配置**，通过 `consistency_method` 字段选择：
 
 ```yaml
 # config/system.yaml
@@ -372,212 +218,60 @@ consistency_method: auto   # auto / pulid_flux / ip_adapter / none
 #   none:        不使用一致性方案（仅靠 LoRA + seed）
 ```
 
-> **启动时自动检测**：管线启动时会调用 ComfyUI `/object_info` 端点获取已注册节点类型，与 YAML 中每个一致性方案的 `required_comfyui_nodes` 比对。若所需插件未安装，对应方案自动跳过（带 Warning 日志），不会报错中断。
+#### 7.1 后端兼容性
 
-#### 6.1 安装 ComfyUI 自定义节点
+| 图像后端 | 架构 | 可用一致性方案 | 说明 |
+|---------|------|:-------------:|------|
+| `flux` | DiT | **PuLID-Flux + Flux IP-Adapter FaceID** | **推荐**，双层管道：PuLID 做主锚定 + FaceID IP-Adapter 加固 |
+| `sd15` | UNet | IP-Adapter Plus | 成熟稳定，面部一致性好 |
+| `cosmos` | DiT | 无 | 仅 LoRA 训练 |
 
-```bash
-cd ComfyUI/custom_nodes/
-git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus.git
-# 重启 ComfyUI
-```
+> Flux 后端默认启用 `flux_identity` **一致性管道**：PuLID-Flux（Layer 1）→ Flux IP-Adapter FaceID（Layer 2），两层叠加实现最强的身份保持。若 Mosaic 未提供 FaceID 能力，自动降级为纯 PuLID。
 
-#### 6.2 下载模型文件
+#### 7.2 框架导入检测
 
-**方案 A：SD1.5 后端（推荐，IP-Adapter Plus 兼容）**
+> **启动时自动检测**：管线启动时会检测 Mosaic 框架已导入的能力，与 YAML 中每个一致性方案的工作流节点需求（定义在 `models_registry.yaml`）比对。若所需能力未导入，对应方案自动跳过（带 Warning 日志），不会报错中断。检查统一在 `inject_from_registry()` 入口执行，覆盖泛型 `NodeGraphInjector` 和 `inject_method` 覆盖（如 ControlNet Depth）两条路径。
 
-需要下载 **1 个 IP-Adapter 模型** + **1 个 CLIP Vision 编码器**：
-
-```bash
-# 1. IP-Adapter 模型 → 放入 ComfyUI/models/ipadapter/
-#    目录不存在则手动创建: mkdir -p ComfyUI/models/ipadapter/
-wget -O ComfyUI/models/ipadapter/ip-adapter-plus-face_sd15.safetensors \
-  https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter-plus-face_sd15.safetensors
-
-# 2. CLIP Vision 编码器 → 放入 ComfyUI/models/clip_vision/
-wget -O ComfyUI/models/clip_vision/CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors \
-  https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors
-```
-
-**方案 B：SDXL 后端**
-
-```bash
-# IP-Adapter 模型（SDXL 版）
-wget -O ComfyUI/models/ipadapter/ip-adapter-plus-face_sdxl_vit-h.safetensors \
-  https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus-face_sdxl_vit-h.safetensors
-
-# CLIP Vision 编码器（SDXL 用 bigG）
-wget -O ComfyUI/models/clip_vision/CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors \
-  https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/model.safetensors
-```
-
-<details>
-<summary>全部可用模型</summary>
-
-**SD1.5 系列**（CLIP Vision: `CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors`）
-
-| 模型 | 说明 |
-|------|------|
-| `ip-adapter-plus-face_sd15.safetensors` | **默认推荐**，面部一致性最强 |
-| `ip-adapter-plus_sd15.safetensors` | 通用 Plus，风格+内容保持 |
-| `ip-adapter-full-face_sd15.safetensors` | 更强面部保持，可能过度拟合 |
-| `ip-adapter_sd15.safetensors` | 基础模型，影响最弱 |
-
-**SDXL 系列**（CLIP Vision: `CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors`）
-
-| 模型 | 说明 |
-|------|------|
-| `ip-adapter-plus-face_sdxl_vit-h.safetensors` | SDXL 面部模型 |
-| `ip-adapter-plus_sdxl_vit-h.safetensors` | SDXL 通用 Plus |
-| `ip-adapter_sdxl.safetensors` | SDXL 基础（需 bigG 编码器） |
-
-</details>
-
-#### 6.3 配置
-
-IP-Adapter 默认已启用，配置在 `config/system.yaml` 中：
+#### 7.3 配置示例
 
 ```yaml
-ip_adapter:
-  enabled: true
-  model: "ip-adapter-plus-face_sd15.safetensors"   # SD1.5 面部模型
-  clip_vision: "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
-  weight: 0.75              # 参考图权重（官方建议 ≤0.8）
-  secondary_weight: 0.45    # 多角色时次要角色权重
-  embeds_scaling: "V only"  # 面部特征保持最佳的缩放模式
-```
-
-> 如使用 SDXL 后端，将 `model` 改为 `ip-adapter-plus-face_sdxl_vit-h.safetensors`，`clip_vision` 改为 `CLIP-ViT-bigG-14-laion2B-39B-b160k.safetensors`。
-
-#### 6.4 验证
-
-启动后在 Web 工作台仪表盘查看 IP-Adapter 状态，或 CLI：
-
-```bash
-drama status   # 应显示 IP-Adapter Plus ✅
-```
-
-### 8. PuLID-Flux（Flux 面部一致性，推荐）
-
-> 基于 [PuLID](https://github.com/ToTheBeginning/PuLID) 的 Flux 面部一致性方案。通过 InsightFace 检测人脸 + EVA CLIP 编码面部特征，将 ID embedding 注入 Flux DiT 注意力层，实现跨镜头角色面部一致性。
-
-#### 8.1 安装 ComfyUI 自定义节点
-
-```bash
-cd ComfyUI/custom_nodes/
-git clone https://github.com/balazik/ComfyUI-PuLID-Flux.git
-# 可选增强版（更多融合方法）：
-# git clone https://github.com/sipie800/ComfyUI-PuLID-Flux-Enhanced.git
-# 重启 ComfyUI
-```
-
-#### 8.2 下载模型文件
-
-需要下载 **3 类模型**：
-
-```bash
-# 1. PuLID Flux 模型 → ComfyUI/models/pulid/
-mkdir -p ComfyUI/models/pulid/
-wget -O ComfyUI/models/pulid/pulid_flux_v0.9.0.safetensors \
-  "https://huggingface.co/guozinan/PuLID/resolve/main/pulid_flux_v0.9.0.safetensors"
-
-# 2. InsightFace AntelopeV2（5 个文件）→ ComfyUI/models/insightface/models/antelopev2/
-mkdir -p ComfyUI/models/insightface/models/antelopev2/
-wget -O ComfyUI/models/insightface/models/antelopev2/1k3d68.onnx \
-  https://hf-mirror.com/MonsterMMORPG/tools/resolve/main/1k3d68.onnx
-wget -O ComfyUI/models/insightface/models/antelopev2/2d106det.onnx \
-  https://hf-mirror.com/MonsterMMORPG/tools/resolve/main/2d106det.onnx
-wget -O ComfyUI/models/insightface/models/antelopev2/genderage.onnx \
-  https://hf-mirror.com/MonsterMMORPG/tools/resolve/main/genderage.onnx
-wget -O ComfyUI/models/insightface/models/antelopev2/glintr100.onnx \
-  https://hf-mirror.com/MonsterMMORPG/tools/resolve/main/glintr100.onnx
-wget -O ComfyUI/models/insightface/models/antelopev2/scrfd_10g_bnkps.onnx \
-  https://hf-mirror.com/MonsterMMORPG/tools/resolve/main/scrfd_10g_bnkps.onnx
-
-# 3. EVA02-CLIP-L-14-336 → 首次运行自动下载（或手动放到 ComfyUI/models/clip/）
-```
-
-#### 8.3 配置
-
-PuLID-Flux 默认已启用，配置在 `config/system.yaml` 中：
-
-```yaml
+# PuLID-Flux（Flux 后端）
 pulid_flux:
   enabled: true
   model: "pulid_flux_v0.9.0.safetensors"
   weight: 0.9              # 推荐 0.8-0.95（1.0 过拟合）
   fusion: "mean"           # 多图融合方法: mean / concat / max / train_weight
   use_gray: true           # 灰度优化（边缘轮廓更自然）
-```
 
-#### 8.4 技巧
+# IP-Adapter Plus（SD1.5/SDXL 后端）
+ip_adapter:
+  enabled: true
+  model: "ip-adapter-plus-face_sd15.safetensors"
+  clip_vision: "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+  weight: 0.75              # 参考图权重（官方建议 ≤0.8）
+  secondary_weight: 0.45    # 多角色时次要角色权重
+  embeds_scaling: "V only"  # 面部特征保持最佳的缩放模式
 
-- **参考图质量很重要**：使用清晰、正面、光线均匀的定妆照
-- **weight 推荐 0.8-0.95**：1.0 容易过拟合，面部僵硬
-- **Euler + simple** 调度器始终可用；Euler + beta 对低质量参考图效果更好
-- **多角色同框**：自动链式注入，主角色 weight=0.9，次要角色自动降权
-
-#### 8.4 管道联动
-
-Flux 后端默认启用 `flux_identity` 一致性管道，PuLID-Flux 作为 Layer 1（人脸锚定），自动叠加 Layer 2 的 Flux IP-Adapter FaceID 做身份加固。管道各层独立可用性检测，ComfyUI 缺少某层插件时自动降级。
-
-### 8.5 Flux IP-Adapter FaceID（Shakker-Labs，身份加固层）
-
-> 基于 [Shakker-Labs/ComfyUI-IPAdapter-Flux](https://github.com/Shakker-Labs/ComfyUI-IPAdapter-Flux.git) 的 FaceID Plus 版本。通过 InsightFace ArcFace 提取人脸 ID embedding + CLIP-ViT-L 图像嵌入，双重锚定实现跨镜头身份一致。
->
-> **在 `flux_identity` 管道中作为 Layer 2 运行**（Layer 1 为 PuLID-Flux），两层的 weight 独立可调。
-
-#### 8.5.1 安装 ComfyUI 自定义节点
-
-```bash
-cd ComfyUI/custom_nodes/
-git clone https://github.com/Shakker-Labs/ComfyUI-IPAdapter-Flux.git
-# 重启 ComfyUI
-```
-
-或在 ComfyUI Manager 中搜索 `ComfyUI-IPAdapter-Flux` 安装。
-
-节点类名：`IPAdapterFluxLoader` / `ApplyIPAdapterFlux`
-
-#### 8.5.2 下载模型文件
-
-> 模型来自 [InstantX/FLUX.1-dev-IP-Adapter](https://huggingface.co/InstantX/FLUX.1-dev-IP-Adapter)。
-> InsightFace ArcFace 提取人脸 ID embedding + CLIP-ViT-L (SigLIP) 图像嵌入，双重锚定实现跨镜头身份一致。
-
-| 文件名 | 位置 | 说明 |
-|--------|------|------|
-| `ip-adapter.bin` | `ComfyUI/models/ipadapter-flux/` | IP-Adapter 权重 |
-| `siglip-so400m-patch14-384.safetensors` | `ComfyUI/models/clip_vision/` | CLIP Vision 编码器 |
-
-**国内镜像**：
-```bash
-# ip-adapter.bin
-wget -O ComfyUI/models/ipadapter-flux/ip-adapter.bin \
-  https://hf-mirror.com/InstantX/FLUX.1-dev-IP-Adapter/resolve/main/ip-adapter.bin
-
-# siglip
-wget -O ComfyUI/models/clip_vision/siglip-so400m-patch14-384.safetensors \
-  https://hf-mirror.com/google/siglip-so400m-patch14-384/resolve/main/model.safetensors
-```
-
-#### 8.5.3 配置
-
-Flux IP-Adapter FaceID 配置在 `config/system.yaml` 中：
-
-```yaml
+# Flux IP-Adapter FaceID（管道 Layer 2）
 ip_adapter_flux_shakker:
   enabled: true
   model: "ip-adapter.bin"                            # InstantX IP-Adapter 权重
   weight: 0.7              # 管道 Layer 2 权重（Layer 1 PuLID 为主锚，此层为加固）
+
+# ControlNet Depth（全身结构一致性，可选，默认禁用）
+controlnet_depth:
+  enabled: false               # 默认禁用
+  model: "flux-depth-controlnet-v3.safetensors"
+  strength: 0.8                # ControlNet 强度（0.5-1.0，越高结构越严格）
+  start_percent: 0.0           # 生效起始步（0.0 = 从头开始）
+  end_percent: 1.0             # 生效结束步（1.0 = 全程生效）
 ```
 
-#### 8.5.4 验证
+> 上述模型文件由 Mosaic 框架统一管理，无需手动下载到 `ComfyUI/models/` 目录。
 
-```bash
-drama status   # 检查 IPAdapterFluxLoader / ApplyIPAdapterFlux 节点是否可用
-```
+#### 7.4 管道联动
 
-#### 8.5.5 管道协同
+Flux 后端默认启用 `flux_identity` 一致性管道，PuLID-Flux 作为 Layer 1（人脸锚定），自动叠加 Layer 2 的 Flux IP-Adapter FaceID 做身份加固。管道各层独立可用性检测，Mosaic 缺少某层能力时自动降级。
 
 ```
 UNETLoader
@@ -592,102 +286,24 @@ ApplyIPAdapterFlux      ← Layer 2, FaceID IP-Adapter, weight=0.7（加固）
 KSampler
 ```
 
-> 降级行为：若 ComfyUI 缺少 Flux IP-Adapter 节点 → 自动回退为纯 PuLID-Flux（单层）。不会报错中断。
+> 降级行为：若 Mosaic 缺少 Flux IP-Adapter 能力 → 自动回退为纯 PuLID-Flux（单层）。不会报错中断。
 
-## 8.6 ControlNet Depth（Flux 全身结构一致性，可选）
+#### 7.5 技巧
 
-> 基于 ControlNet Depth 实现全身结构一致性。从角色全身参考图生成 depth map，通过 ControlNet 强制身体结构（体型、姿态、服装轮廓）在不同镜头间保持一致。
-> **与 IP-Adapter/PuLID 并行工作**：IP-Adapter/PuLID 负责面部一致性，ControlNet Depth 负责身体结构一致性。
+- **参考图质量很重要**：使用清晰、正面、光线均匀的定妆照
+- **weight 推荐 0.8-0.95**：1.0 容易过拟合，面部僵硬
+- **多角色同框**：自动链式注入，主角色 weight=0.9，次要角色自动降权
+- **ControlNet Depth**：与 IP-Adapter/PuLID 并行工作，前者控制身体结构，后者控制面部，可同时接入 KSampler
 
-### 8.6.1 安装 ComfyUI 自定义节点
+#### 7.6 验证
 
-```bash
-cd ComfyUI/custom_nodes/
-
-# 1. ControlNet Aux（提供 MiDaS-DepthMapPreprocessor 深度估计节点）
-git clone https://github.com/Fannovel16/comfyui_controlnet_aux.git
-
-# 2. XLabs Flux ControlNet（提供 LoadFluxControlNet / ApplyFluxControlNet）
-git clone https://github.com/XLabs-AI/x-flux-comfyui.git
-```
-
-### 8.6.2 下载模型文件
+启动后在 Web 工作台仪表盘查看一致性方案状态，或 CLI：
 
 ```bash
-# Flux ControlNet Depth V3 模型 → ComfyUI/models/xlabs/controlnets/
-# 注意：LoadFluxControlNet（x-flux-comfyui）使用 XLabs 专属目录，非 ComfyUI 标准 controlnet 目录
-mkdir -p ComfyUI/models/xlabs/controlnets/
-wget -O ComfyUI/models/xlabs/controlnets/flux-depth-controlnet-v3.safetensors \
-  "https://hf-mirror.com/XLabs-AI/flux-controlnet-depth-v3/resolve/main/flux-depth-controlnet-v3.safetensors"
-
-# 注：MiDaS 深度估计模型由 comfyui_controlnet_aux 首次运行时自动下载，无需手动操作。
+drama status   # 应显示一致性方案 ✅
 ```
 
-> **说明**：
-> - MiDaS 深度估计由 `comfyui_controlnet_aux` 插件提供，模型会在首次使用时自动下载。
-
-### 8.6.3 工作流搭建
-
-在 ComfyUI 中搭建如下流程：
-
-```
-[角色全身参考图]
-       │
-       ▼
-[MiDaS Depth Preprocessor]  ← 生成 depth map
-       │
-       ▼
-[ApplyFluxControlNet]  ← 加载 flux-controlnet-depth-v3
-       │  controlnet_condition
-       ▼
-[KSampler / XlabsSampler]  ← 与 model / IP-Adapter / PuLID 并行输入
-```
-
-**关键节点与参数：**
-
-| 节点 | 说明 |
-|------|------|
-| **MiDaS-DepthMapPreprocessor** | 输入角色全身参考图，输出 depth map（由 comfyui_controlnet_aux 提供） |
-| **LoadFluxControlNet** | 加载 `flux-depth-controlnet-v3.safetensors`，选择 base 为 flux-dev |
-| **ApplyFluxControlNet** | strength 建议 0.6–0.8（过高会限制其他条件的灵活性） |
-
-**与 IP-Adapter/PuLID 并行使用的注意事项：**
-
-- ControlNet Depth 控制身体结构，IP-Adapter/PuLID 控制面部——两者不冲突，可同时接入 KSampler。
-- 如果同时使用 IP-Adapter，建议 ControlNet Depth strength 设为 **0.5–0.7**，避免两者权重叠加过高导致画面僵硬。
-- 全身参考图应选择姿态自然、服装完整的图片，MiDaS 对这类图片的深度估计最准确。
-
-### 8.6.4 配置
-
-ControlNet Depth 默认禁用，配置在 `config/system.yaml` 中：
-
-```yaml
-controlnet_depth:
-  enabled: true                # 启用 ControlNet Depth
-  model: "flux-depth-controlnet-v3.safetensors"
-  strength: 0.8                # ControlNet 强度（0.5-1.0，越高结构越严格）
-  start_percent: 0.0           # 生效起始步（0.0 = 从头开始）
-  end_percent: 1.0             # 生效结束步（1.0 = 全程生效）
-```
-
-### 8.6.5 验证
-
-```bash
-drama status   # 检查 ControlNet 节点是否可用
-```
-
-- 用同一张角色全身参考图生成 3 张不同场景的图片，检查体型、姿态、服装轮廓是否一致。
-- 如果身体结构偏移过大，提高 ControlNet strength；如果画面过于僵硬，降低 strength。
-- 可同时结合 IP-Adapter 的面部一致性，确认面部和身体均保持一致。
-
-### 8.6.6 说明
-
-- **工作原理**：从角色全身参考图（`full_body.png`）生成 depth map，通过 ControlNet 强制生成图像的深度结构与参考图一致
-- **适用场景**：Flux 后端的全身/半身镜头，需要保持角色体型、姿态、服装轮廓一致性
-- **与 IP-Adapter 的关系**：两者可以并行使用，IP-Adapter 负责面部特征，ControlNet Depth 负责身体结构
-- **显存需求**：额外占用约 2-4GB 显存（MiDaS 深度估计 + ControlNet 模型）
-
-### 9. TTS 后端（语音合成）
+### 8. TTS 后端（语音合成）
 
 > 项目使用 **Mosaic 离线语音合成**作为唯一 TTS 后端。已移除 mimo-voicedesign、mimo-voiceclone、gpt-sovits、cosyvoice、fish-speech、chattts 等在线/云 TTS 后端，统一为离线 Mosaic 实现，无需任何 API Key。
 
@@ -726,7 +342,7 @@ character:
 | Milo | English Male | Steady & deep |
 | Dean | English Male | Rich & resonant |
 
-### 10. 声线库（1000 种声线）
+### 9. 声线库（1000 种声线）
 
 > 内置 1000 种声线 WAV 参考音频，一键选用到角色。
 
@@ -791,7 +407,7 @@ shared_assets/voices/          # 声线库（.gitignore 已屏蔽）
 drama serve                            # 启动 Web 工作台
 drama worker                           # 启动 Celery Worker
 drama worker -c 4                      # Worker 并发数 4
-drama status                           # 服务状态（Redis + Celery + ComfyUI + TTS）
+drama status                           # 服务状态（Redis + Celery + Mosaic + TTS）
 drama env                              # 环境信息（OS / Python / GPU / Redis）
 
 # 数据导入导出
@@ -806,7 +422,7 @@ drama clean --cache                    # 清理缓存
 
 # 角色管理
 drama outfit-regenerate <project> <char_id>   # 重新生成角色服装参考图
-                                             # 用于调试服装图面部一致性（提高 PuLID 权重）
+                                             # 用于调试服装图面部一致性（提高一致性方案权重）
 
 # 声线库
 drama voices                           # 同步声线库
@@ -814,7 +430,7 @@ drama voices --index-only              # 已有 WAV 直接生成索引
 
 # 环境预配置
 drama setup --insightface              # 预下载 InsightFace buffalo_l 人脸检测模型
-                                       # 避免 worker 任务中触发极慢的 GitHub 下载（~275MB）
+                                       # Mosaic 一致性方案使用，避免首次运行触发慢速下载（~275MB）
 ```
 
 > 所有生产操作（AI 生成、翻译、生产、后期、项目管理）均通过 Web 工作台完成。
@@ -827,14 +443,14 @@ drama setup --insightface              # 预下载 InsightFace buffalo_l 人脸�
 
 | 页面 | 功能 |
 |------|------|
-| 📊 仪表盘 | 系统状态总览（Redis / Celery / ComfyUI / TTS / LipSync / LLM） |
+| 📊 仪表盘 | 系统状态总览（Redis / Celery / Mosaic / TTS / LipSync / LLM） |
 | 👤 角色管理 | 创建/编辑/删除角色 + 🤖 AI 从描述生成 |
 | 🏔️ 场景管理 | 创建/编辑/删除场景 + 🤖 AI 从描述生成 |
 | 📝 分镜表 | 内联编辑表格 + 🤖 AI 从大纲一键生成 |
 | 🎬 生产管线 | 五阶段执行：AI 分镜 → AI 实体 → 准备 → 生产 → 后期 |
 | 📂 项目管理 | 多项目切换 |
 | 🎤 声线库 | 搜索/试听/选用声线到角色 |
-| ⚙️ 系统设置 | TTS/ComfyUI/LipSync/**LLM**/**Seko** 配置、语言切换 |
+| ⚙️ 系统设置 | TTS/Mosaic/LipSync/**LLM** 配置、语言切换 |
 
 ### 工作台快捷键
 
@@ -871,7 +487,7 @@ drama setup --insightface              # 预下载 InsightFace buffalo_l 人脸�
                                │                       │
                                │              ┌────────▼─────────┐
                                └──────────────│  Celery Worker   │
-                                              │  TTS / ComfyUI   │
+                                              │  TTS / Mosaic    │
                                               │  LipSync / FFmpeg│
                                               └──────────────────┘
 ```
@@ -885,13 +501,12 @@ drama setup --insightface              # 预下载 InsightFace buffalo_l 人脸�
 ```
 api/__init__.py (懒加载)
   ├─ tts/mosaic            → Mosaic 离线 TTS（无需 API Key）
-  ├─ lipsync/musetalk      → 需要 httpx + 本地服务
-  ├─ lipsync/wav2lip       → 需要 httpx + 本地服务
-  ├─ image/comfyui         → 需要 httpx + ComfyUI
-  ├─ video/animatediff     → 需要 ComfyUI
-  ├─ llm/ollama            → 需要 httpx + Ollama
-  ├─ music/template        → 仅需 ffmpeg（无额外依赖）
-  └─ music/musicgen        → 需要 httpx + MusicGen API（自部署或 RunPod）
+  ├─ lipsync/mosaic        → Mosaic 离线口型同步（无需 API Key）
+  ├─ image/mosaic          → Mosaic 离线图像生成（无需 API Key）
+  ├─ video/mosaic          → Mosaic 离线视频生成（无需 API Key）
+  ├─ llm/mosaic            → Mosaic 离线 LLM（无需 API Key）
+  ├─ music/mosaic          → Mosaic 离线配乐（无需 API Key）
+  └─ music/template        → 仅需 ffmpeg（无额外依赖）
 ```
 
 ### 注册表驱动
@@ -921,20 +536,19 @@ consistency_methods:                 # 一致性方案元数据
   ip_adapter:
     compatible_backends: ["sd15", "sdxl"]
     inject_method: "_inject_ip_adapter_plus"
-    required_comfyui_node: "IPAdapterAdvanced"
+    required_node: "IPAdapterAdvanced"   # 工作流节点需求（Mosaic 框架导入检测）
 
 services:                            # 辅助服务健康检查
-  comfyui:
+  mosaic:
     health_check:
-      type: "http"
-      path: "/system_stats"
-      config_key: "comfyui.url"
+      type: "import"
+      module: "mosaic"
 ```
 
 注册表覆盖范围：
 - **TTS / LipSync / LLM / Music / Image / Video** — 所有后端的健康检查、默认值
 - **prompt 风格** — `tag`（SD1.5 CLIP）或 `natural`（Flux/Cosmos T5）
-- **一致性方案** — 与图像后端的兼容关系、注入方法、所需 ComfyUI 插件
+- **一致性方案** — 与图像后端的兼容关系、注入方法、所需 Mosaic 能力
 - **帧数参数** — 视频后端的节点类型 + 参数名映射
 - **生产步骤** — shot_task 的步骤编排
 - **工具检测** — 健康检查类型驱动，零 if-elif
@@ -954,69 +568,48 @@ project:
   style: "cinematic"
   genre: "urban"
 
-comfyui:
-  url: "http://127.0.0.1:8188"
-  timeout: 300
-
 models:
   tts_backend: "mosaic"                # Mosaic 离线语音合成（开箱即用，无需 API Key）
-  lip_sync_backend: "musetalk"
-  music_backend: "template"            # ffmpeg 模板，无需额外服务
-  # music_backend: "musicgen"          # MusicGen API（自部署或 RunPod），需配置 music.api_url
-  image_backend: "sd15"
-  video_backend: "animatediff"
-
-  # 各后端配置
-  musetalk:
-    api_url: "http://your-musetalk-server:8080"
+  lip_sync_backend: "mosaic"           # Mosaic 离线口型同步
+  music_backend: "mosaic"              # Mosaic 离线配乐
+  image_backend: "flux"                # Mosaic 离线图像生成
+  video_backend: "cosmos-video"        # Mosaic 离线视频生成
 
 llm:
-  enabled: false
-  backend: "ollama"
-  base_url: "http://localhost:11434"
-  # model: "qwen3:8b"          # Ollama 模型名
-  # api_key: ""                # OpenAI 兼容 API 需要
-  batch_translate: true         # 批量翻译（多条合并一次 LLM 调用，false 则逐条翻译）
+  enabled: true
+  backend: "mosaic"                    # Mosaic 离线 LLM（无需 API Key）
+  model: "Qwen/Qwen2.5-7B-Instruct"
+  max_output: 8192
+  batch_translate: true                # 批量翻译（多条合并一次 LLM 调用，false 则逐条翻译）
 
 portraits:
-  auto_outfit: true             # 管线中自动生成 outfit 参考图（默认 true）
+  auto_outfit: true                    # 管线中自动生成 outfit 参考图（默认 true）
 
 timeouts:
-  comfyui: 300
+  image: 300                           # 图像生成超时
+  video: 600                           # 视频生成超时
   tts: 60
   lipsync: 120
-  llm: 300
-  music: 120
-
-seko:
-  # api_key: ''  # 或设置环境变量 SEKO_API_KEY
+  llm: 120
+  music: 300
 ```
 
 ### LLM 配置示例
 
 ```yaml
-# Ollama（本地）
+# Mosaic 离线 LLM（默认，零配置）
 llm:
   enabled: true
-  backend: "ollama"
-  base_url: "http://localhost:11434"
-  model: "qwen3:8b"
-
-# SiliconFlow（云 API）
-llm:
-  enabled: true
-  backend: "openai"
-  base_url: "https://api.siliconflow.cn"
+  backend: "mosaic"
   model: "Qwen/Qwen2.5-7B-Instruct"
-  api_key: "sk-xxx"
+  max_output: 8192
 
-# OpenAI
+# 切换其他 Mosaic 本地模型
 llm:
   enabled: true
-  backend: "openai"
-  base_url: "https://api.openai.com"
-  model: "gpt-4o-mini"
-  api_key: "sk-xxx"
+  backend: "mosaic"
+  model: "Qwen/Qwen2.5-14B-Instruct"
+  max_output: 8192
 ```
 
 配置加载支持：
@@ -1065,13 +658,13 @@ ai-drama-pipeline/
 │   ├── registry.py               # 服务注册表 + Container（DI 容器）
 │   └── backends/                 # 后端实现
 │       ├── tts/                  #   TTS: mosaic（离线语音合成）
-│       ├── lipsync/              #   口型同步: musetalk / wav2lip
-│       ├── image/                #   图像生成: comfyui（SD1.5/Flux/Cosmos/HiDream）
-│       ├── video/                #   视频生成: animatediff（AnimateDiff/CogVideoX/Cosmos-Video）
-│       ├── llm/                  #   LLM: ollama（Ollama + OpenAI 兼容）
-│       ├── music/                #   配乐: template（FFmpeg）、musicgen（MusicGen API）
-│       ├── seko/                 #   Seko 影视策划案
-│       └── training/             #   LoRA 训练: ai_toolkit
+│       ├── lipsync/              #   口型同步: mosaic（离线 Wav2Lip/SadTalker）
+│       ├── image/                #   图像生成: mosaic（离线 SD1.5/Flux/Cosmos/HiDream）
+│       ├── video/                #   视频生成: mosaic（离线 AnimateDiff/CogVideoX/Cosmos-Video）
+│       ├── llm/                  #   LLM: mosaic（离线 HuggingFace 本地模型）
+│       ├── music/                #   配乐: mosaic（离线 MusicGen）、template（FFmpeg）
+│       ├── seko/                 #   Seko 影视策划案（Mosaic 离线 LLM 驱动）
+│       └── training/             #   LoRA 训练: mosaic（离线 diffusers + peft）
 │
 ├── engines/                      # 引擎层（核心业务逻辑）
 │   ├── dialogue.py               #   对话解析
@@ -1089,7 +682,7 @@ ai-drama-pipeline/
 │   │   ├── translate.py          #     LLM 翻译（批量/单条）
 │   │   └── view.py               #     Prompt 视图
 │   ├── workflow/                 #   工作流子包
-│   │   ├── builder.py            #     ComfyUI 工作流构建（首帧/视频，含 mtime 缓存）
+│   │   ├── builder.py            #     工作流构建（首帧/视频，含 mtime 缓存）
 │   │   ├── node_graph.py         #     工作流节点图
 │   │   ├── utils.py              #     工作流工具
 │   │   ├── inject.py             #     一致性方案注入（IP-Adapter/PuLID/LoRA）
@@ -1159,7 +752,7 @@ ai-drama-pipeline/
 │   │   ├── registry_media.py     #     媒体注册表
 │   │   └── resolver.py           #     配置解析器
 │   ├── storage/                  #   存储子包
-│   │   ├── asset_tracker.py      #     ComfyUI 资产跟踪（PostgreSQL 持久化）
+│   │   ├── asset_tracker.py      #     Mosaic 资产跟踪（PostgreSQL 持久化）
 │   │   └── file_watcher.py       #     文件系统监控（YAML 变化自动失效缓存）
 │   └── database/                 #   PostgreSQL（分镜表/生成状态/资产跟踪）
 │       ├── schema.py             #     表结构定义（CREATE IF NOT EXISTS）
@@ -1167,7 +760,7 @@ ai-drama-pipeline/
 │       ├── _db.py                #     共享工具（项目自动解析 + query 上下文管理器）
 │       ├── storyboard_db.py      #     分镜 CRUD + CSV 导出
 │       ├── generation.py         #     生成状态 CRUD
-│       └── comfyui_assets.py     #     ComfyUI 资产跟踪表
+│       └── comfyui_assets.py     #     资产跟踪表（Mosaic 资源上传记录）
 │
 ├── web/                          # FastAPI Web 工作台
 │   ├── app.py                    #   应用工厂 + 日志配置 + lifespan
@@ -1214,12 +807,12 @@ ai-drama-pipeline/
 │   └── test_session_changes.py   #   会话变更回归测试
 │
 ├── config/                       # 全局配置
-│   ├── system.yaml               #   系统全局配置（ComfyUI/LLM/TTS/一致性方案/预设）
+│   ├── system.yaml               #   系统全局配置（Mosaic 离线后端/LLM/TTS/一致性方案/预设）
 │   ├── models_registry.yaml      #   模型注册表（所有后端元数据的唯一真相来源）
 │   ├── prompt_templates.yaml     #   Prompt 模板（翻译/分镜/角色/场景/圣经生成）
 │   └── default_storyboard.py     #   默认分镜种子数据
 │
-├── workflows/                    # ComfyUI 工作流模板（8 个 JSON）
+├── workflows/                    # 工作流模板（ComfyUI 格式 JSON，由 Mosaic 解析执行，8 个）
 │   ├── 01_first_frame_sd15.json  #   SD1.5 首帧
 │   ├── 01_first_frame_flux.json  #   Flux 首帧
 │   ├── 01_first_frame_flux_fp8.json  # Flux FP8 首帧
@@ -1263,7 +856,7 @@ ai-drama-pipeline/
 | `PostgreSQL 认证失败` | 用户名/密码不匹配 | 检查 `.env` 中的 `AI_DRAMA_DB_DSN`，确认用户和密码 |
 | `数据库不存在` | 未创建 ai_drama 数据库 | `sudo -u postgres psql -c "CREATE DATABASE ai_drama OWNER drama;"` |
 | `Celery Worker 未启动` | Worker 进程未运行 | 在另一个终端运行 `drama worker` |
-| `ComfyUI 不可达` | ComfyUI 未启动或地址错误 | 确认 ComfyUI 已启动：`curl http://127.0.0.1:8188/system_stats`。安装：[ComfyUI](https://github.com/comfyanonymous/ComfyUI) |
+| `Mosaic 不可达` | Mosaic 框架未正确导入 | 确认 Mosaic 已安装：`pip show mosaic-framework`。Mosaic 离线运行，无需启动独立服务 |
 | `TTS 不可用` | Mosaic 离线 TTS 服务异常 | 检查 Mosaic TTS 服务状态（离线模式，无需 API Key） |
 | `LLM 未启用` | LLM 配置未开启 | 在项目配置中设置 `llm.enabled: true`，或在 Web 设置页开启 |
 | `角色缺定妆照` | 未生成角色形象图 | Web 工作台「👤 角色」→「🎨 AI 生成定妆照」 |

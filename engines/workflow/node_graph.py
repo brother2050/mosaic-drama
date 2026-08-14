@@ -394,12 +394,12 @@ class NodeGraphInjector:
 
         # Update reference image on existing LoadImage nodes
         from engines.workflow.utils import find_character_load_image_nodes
-        from infra.storage.asset_tracker import comfyui_asset_name
+        from infra.storage.asset_tracker import mosaic_asset_name
 
         char_nodes = find_character_load_image_nodes(wf)
         if char_nodes and ref_images:
             char_id = ctx.get("char_id", "")
-            remote_name = (comfyui_asset_name(project_dir, char_id, os.path.basename(ref_images[0]))
+            remote_name = (mosaic_asset_name(project_dir, char_id, os.path.basename(ref_images[0]))
                            if project_dir else os.path.basename(ref_images[0]))
             wf[char_nodes[0]]["inputs"]["image"] = remote_name
 

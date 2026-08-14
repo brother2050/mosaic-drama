@@ -36,9 +36,9 @@ class FirstFrameParams:
 
 
 def _upload_reference_images(wf: dict, shot: dict, wb, comfyui, paths) -> dict:
-    """并行上传参考图到 ComfyUI 服务器，更新工作流节点引用（复用共享线程池）"""
+    """并行上传参考图到 Mosaic 服务器，更新工作流节点引用（复用共享线程池）"""
     from engines.workflow import find_character_load_image_nodes as _find_char_nodes
-    from infra.storage.asset_tracker import comfyui_asset_name
+    from infra.storage.asset_tracker import mosaic_asset_name
 
     # 仅在工作流含一致性节点时区分角色/场景节点；
     # 无一致性节点时 find_character_load_image_nodes 会回退到全部 LoadImage，
@@ -63,7 +63,7 @@ def _upload_reference_images(wf: dict, shot: dict, wb, comfyui, paths) -> dict:
                 parts = Path(file_path).parts
                 char_idx = parts.index("characters") + 1
                 cid = parts[char_idx] if char_idx < len(parts) else "unknown"
-                remote_name = comfyui_asset_name(str(paths.root), cid, Path(file_path).name)
+                remote_name = mosaic_asset_name(str(paths.root), cid, Path(file_path).name)
             else:
                 remote_name = Path(file_path).name
             comfyui.upload_image(file_path, filename=remote_name)

@@ -120,13 +120,13 @@
 │                                                               │
 │ 输入: 角色YAML (appearance_prompt_en + outfits)                │
 │ 处理:                                                         │
-│   1. WorkflowBuilder 构建 ComfyUI 首帧工作流                   │
-│   2. 调用 ComfyUI /object_info 获取可用节点                      │
-│   3. 注入 IP-Adapter/PuLID 面部一致性（按节点可用性自动跳过）     │
-│      - 若 required_comfyui_nodes 缺失 → Warning + 跳过，不中断  │
+│   1. WorkflowBuilder 构建 Mosaic 首帧工作流                    │
+│   2. 检测 Mosaic 框架已导入的能力模块                            │
+│   3. 注入 IP-Adapter/PuLID 面部一致性（按能力可用性自动跳过）     │
+│      - 若 required_capabilities 缺失 → Warning + 跳过，不中断   │
 │   4. 注入角色 LoRA（如有训练）                                  │
 │   5. 注入全局 LoRA（如 ACE++ Portrait）                        │
-│   6. ComfyUI 生成 → cover.png                                 │
+│   6. Mosaic 生成 → cover.png                                  │
 │   7. 各服装 outfit_*.png                                       │
 │ 输出: assets/characters/{id}/cover.png                         │
 │       assets/characters/{id}/default/outfit_*.png              │
@@ -138,7 +138,7 @@
 │   auto  → 根据 image_backend 自动选择                          │
 │ ──────────────────────────────────────────────────────────────│
 │ 节点可用性校验 (启动时):                                        │
-│   检查 required_comfyui_nodes → 缺失则跳过对应方案 (WARNING)    │
+│   检查 required_capabilities → 缺失则跳过对应方案 (WARNING)    │
 └───────────────────────────────────────────────────────────────┘
     │
     ▼
@@ -147,7 +147,7 @@
 │ task: pipeline_scene_images / pipeline_scene_image_single      │
 │                                                               │
 │ 输入: 场景YAML (description_en)                                │
-│ 处理: WorkflowBuilder 构建工作流 → ComfyUI 生成                 │
+│ 处理: WorkflowBuilder 构建工作流 → Mosaic 生成                 │
 │ 输出: assets/scenes/{id}/cover.png                             │
 │ 副作用: 更新场景YAML reference_images                          │
 └───────────────────────────────────────────────────────────────┘
@@ -191,12 +191,12 @@
 │ │      - GPU参数注入 (分辨率/步数/采样器)                  │   │
 │ │      - Prompt注入 (positive/negative)                    │   │
 │ │      - 一致性方案注入 (IP-Adapter/PuLID/LoRA)           │   │
-│ │        (自动节点检测: 缺失则 WARNING 跳过，不中断管线)     │   │
+│ │        (框架导入检测: 缺失则 WARNING 跳过，不中断管线)     │   │
 │ │      - Seed随机化                                        │   │
-│ │   3. 并行上传参考图到ComfyUI                             │   │
-│ │   4. comfyui_generate → frame.png                       │   │
+│ │   3. 并行上传参考图到Mosaic                              │   │
+│ │   4. mosaic_generate → frame.png                       │   │
 │ │ 输出: output/e01/s001/frame.png                          │   │
-│ │ 并发组: comfyui (1 slot)                                 │   │
+│ │ 并发组: image (1 slot)                                  │   │
 │ │ 看门狗: 300s 超时                                        │   │
 │ └─────────────────────────────────────────────────────────┘   │
 │                    │                                          │
@@ -206,14 +206,14 @@
 │ │                                                         │   │
 │ │ 输入: frame.png + shot                                   │   │
 │ │ 处理:                                                   │   │
-│ │   1. 上传首帧到ComfyUI                                  │   │
+│ │   1. 上传首帧到Mosaic                                   │   │
 │ │   2. WorkflowBuilder.build_video:                        │   │
 │ │      - 加载视频工作流模板                                │   │
 │ │      - 注入视频prompt (appearance + scene + outfit)      │   │
 │ │      - 注入帧数 (= duration × fps)                      │   │
-│ │   3. comfyui_generate → video.mp4                       │   │
+│ │   3. mosaic_generate → video.mp4                       │   │
 │ │ 输出: output/e01/s001/video.mp4                          │   │
-│ │ 并发组: comfyui (1 slot)                                 │   │
+│ │ 并发组: image (1 slot)                                  │   │
 │ │ 看门狗: 600s 超时                                        │   │
 │ └─────────────────────────────────────────────────────────┘   │
 │                    │                                          │
@@ -285,7 +285,7 @@ pipeline_run_all(config_path, episode, vertical, force)
     │   └── 翻译缺失的英文字段 + 视角prompt
     │
     ├── ③ portraits: portraits_task
-    │   └── 生成定妆照 (ComfyUI)
+    │   └── 生成定妆照 (Mosaic)
     │
     ├── ④ produce: produce_task
     │   └── 逐镜头执行 TTS→首帧→视频→口型
@@ -336,7 +336,7 @@ generation_status 表（生成状态跟踪）
 │ UNIQUE(project, episode, shot_id, stage)                 │
 └────────────────────────────────────────────────────────┘
 
-comfyui_assets 表（ComfyUI 资产跟踪）
+mosaic_assets 表（Mosaic 资产跟踪）
 ┌────────────────────────────────────────────────────────┐
 │ project    TEXT NOT NULL DEFAULT 'default'              │
 │ server_url TEXT NOT NULL                                │
@@ -388,7 +388,7 @@ ai-drama-pipeline/
 │               └── episode_01_final.mp4 # 成片
 ├── shared_assets/
 │   └── voices/                  # 声线库
-├── workflows/                   # ComfyUI 工作流模板
+├── workflows/                   # 工作流模板（ComfyUI 格式 JSON，由 Mosaic 解析执行）
 │   ├── flux_first_frame.json
 │   ├── cosmos_first_frame.json
 │   ├── sd15_first_frame.json
@@ -396,10 +396,10 @@ ai-drama-pipeline/
 │   └── cosmos_video.json
 ├── api/backends/                # 后端实现
 │   ├── tts/                     # TTS 后端 (mosaic 离线)
-│   ├── image/                   # 图像后端 (ComfyUI)
-│   ├── video/                   # 视频后端 (AnimateDiff)
-│   ├── lipsync/                 # 口型同步 (2个)
-│   ├── llm/                     # LLM 后端 (OpenAI-compat)
+│   ├── image/                   # 图像后端 (Mosaic)
+│   ├── video/                   # 视频后端 (Mosaic)
+│   ├── lipsync/                 # 口型同步 (Mosaic 口型同步)
+│   ├── llm/                     # LLM 后端 (Mosaic 离线)
 │   ├── music/                   # 配乐 (MusicGen/模板)
 │   ├── training/                # LoRA 训练
 │   └── seko/                    # Seko 策划案
@@ -433,12 +433,10 @@ TTS
   cogvideox                      30    CogVideoX（≥24GB显存）
 
 口型同步
-  musetalk                       10    MuseTalk（默认）
-  wav2lip                        20    Wav2Lip
+  mosaic                         10    Mosaic 口型同步（默认）
 
 LLM
-  openai                         10    OpenAI兼容API（默认）
-  ollama                         50    Ollama本地
+  mosaic                         10    Mosaic 离线 LLM（默认）
 
 配乐
   template                       10    模板配乐（默认）
@@ -545,7 +543,7 @@ pipeline_run_all
     │
     ├── pipeline_portraits
     │   └── pipeline_portrait_single × N角色
-    │       └── (ComfyUI: 定妆照生成)
+    │       └── (Mosaic: 定妆照生成)
     │
     ├── pipeline_produce
     │   └── pipeline_shot × N镜头
@@ -562,7 +560,7 @@ pipeline_run_all
     pipeline_ai_characters    (LLM: 描述→角色)
     pipeline_ai_scenes        (LLM: 描述→场景)
     pipeline_ai_chat_edit     (LLM: 自然语言→修改分镜)
-    pipeline_scene_images     (ComfyUI: 场景图)
+    pipeline_scene_images     (Mosaic: 场景图)
     pipeline_tts_single       (TTS: 单条试听)
     pipeline_music            (MusicGen: 配乐)
     pipeline_subtitle         (SRT: 字幕生成)
@@ -598,8 +596,8 @@ FileWatcher (watchdog)
 ```
 错误类型              处理方式
 ──────────────────────────────────────────────
-ComfyUI 超时          WatchDog 300s/600s → 标记 TIMEOUT
-ComfyUI 生成失败      重试1次 (force=True)
+Mosaic 超时           WatchDog 300s/600s → 标记 TIMEOUT
+Mosaic 生成失败       重试1次 (force=True)
 TTS 合成失败          safe_run 重试2次 (base_delay=1s)
 LLM 返回格式错误      parse_llm_json 容错解析
 LLM 翻译质量差        三层重试: 批量→逐条→跳过
@@ -609,7 +607,7 @@ LLM 翻译>30%失败      跳过重试（服务异常）
 配乐生成失败          跳过（不阻断）
 横转竖失败            跳过（不阻断）
 角色参考图上传失败    阻断（raise RuntimeError）
-一致性插件节点缺失     跳过，记录 WARNING（/object_info 自动检测）
+一致性能力缺失         跳过，记录 WARNING（框架导入检测自动跳过）
 场景图上传失败        警告（不阻断）
 DB 连接失败           降级（文件系统回退）
 Redis 不可用          CLI 自动尝试启动

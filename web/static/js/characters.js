@@ -368,7 +368,7 @@ function _voiceFilesHtml(charId, voiceData = {}) {
   const refName = refAudio ? refAudio.split('/').pop() : '';
   let html = `<div class="config-section" style="margin-top:1rem;border-top:1px solid var(--bg3);padding-top:1rem">
     <h3>🎤 参考音频文件</h3>
-    <p class="dim" style="font-size:.8rem;margin-bottom:.5rem">上传到本地，支持同步到 GPT-SoVITS 服务器</p>`;
+    <p class="dim" style="font-size:.8rem;margin-bottom:.5rem">上传到本地，支持同步到 Mosaic TTS</p>`;
   // 主参考音频
   html += `<div class="edit-field"><label>主参考音频</label>
     <div id="ec-voice-primary" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">`;
@@ -384,7 +384,7 @@ function _voiceFilesHtml(charId, voiceData = {}) {
   // 辅助参考音频
   html += `<div class="edit-field"><label>辅助参考音频（多说话人音色融合）
     <button class="btn btn-xs btn-outline" style="margin-left:.5rem" onclick="document.getElementById('ec-voice-aux-file').click()">+ 添加</button>
-    <button class="btn btn-xs btn-ai" style="margin-left:.3rem" onclick="ecSyncVoiceToServer('${esc(charId)}')" title="同步所有音频到 GPT-SoVITS 服务器">🔄 同步到服务器</button>
+    <button class="btn btn-xs btn-ai" style="margin-left:.3rem" onclick="ecSyncVoiceToServer('${esc(charId)}')" title="同步所有音频到 Mosaic TTS">🔄 同步到服务器</button>
     <span id="ec-voice-sync-status" class="dim" style="font-size:.75rem;margin-left:.3rem"></span></label>
     <input type="file" id="ec-voice-aux-file" accept=".wav,.mp3,.flac,.ogg,.m4a,.aac" style="display:none" onchange="ecUploadVoice('${esc(charId)}','aux')">
     <div id="ec-voice-aux-list">`;
@@ -438,7 +438,7 @@ async function ecDeleteVoice(filename, role) {
   } catch (e) { toast(`❌ ${e.message}`, 'error'); }
 }
 
-/** 同步参考音频到 GPT-SoVITS 服务器 */
+/** 同步参考音频到 Mosaic TTS */
 async function ecSyncVoiceToServer(charId) {
   const statusEl = document.getElementById('ec-voice-sync-status');
   _html(statusEl, '⏳ 同步中...');
@@ -451,7 +451,7 @@ async function ecSyncVoiceToServer(charId) {
       toast(`同步部分失败: ${r.errors.join(', ')}`, 'error');
     } else {
       _html(statusEl, `✅ ${ok} 个文件已同步`);
-      toast(`✅ ${ok} 个文件已同步到 GPT-SoVITS 服务器`);
+      toast(`✅ ${ok} 个文件已同步到 Mosaic TTS`);
     }
     // 刷新以显示服务器路径
     invalidateCache('characters');

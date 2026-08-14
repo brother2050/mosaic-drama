@@ -1,8 +1,9 @@
-"""ComfyUI 节点 Schema 缓存 — 从 /object_info 获取并缓存节点定义
+"""节点 Schema 缓存 — 从 /object_info 获取并缓存节点定义
 
-ComfyUISchemaCache: 从 ComfyUI /object_info 端点获取所有节点类型的 schema，
+ComfyUISchemaCache: 从 /object_info 端点获取所有节点类型的 schema，
   包括输入定义（名称/类型/可选性/合法值）和输出定义。
   支持本地缓存（JSON 文件）和内存缓存，避免每次预检都请求服务器。
+  该类解析 ComfyUI API 格式的 JSON，供 Mosaic 后端的工作流预检使用。
 
 NodeSchema: 单个节点类型的 schema 数据类。
 InputDef: 节点输入定义（名称/类型/是否必填/合法值列表）。
@@ -87,15 +88,15 @@ class NodeSchema:
 
 
 class ComfyUISchemaCache:
-    """ComfyUI 节点 Schema 缓存
+    """节点 Schema 缓存（解析 ComfyUI API 格式 JSON，供 Mosaic 后端使用）
 
-    从 ComfyUI /object_info 端点获取所有节点类型的详细 schema，
+    从 /object_info 端点获取所有节点类型的详细 schema，
     支持本地文件缓存和内存缓存，避免每次预检都请求服务器。
 
     Attributes:
-        comfyui_url: ComfyUI 服务器地址
+        comfyui_url: 服务器地址
         cache_file: 本地缓存文件路径（None 时不持久化）
-        api_key: ComfyUI API Key（可选）
+        api_key: API Key（可选）
     """
 
     def __init__(
@@ -128,7 +129,7 @@ class ComfyUISchemaCache:
         return (time.time() - self._last_fetch) < self._cache_ttl
 
     def refresh(self, force: bool = False) -> bool:
-        """从 ComfyUI 服务器拉取最新 schema
+        """从服务器拉取最新 schema
 
         Args:
             force: 是否强制刷新（忽略缓存）
@@ -140,7 +141,7 @@ class ComfyUISchemaCache:
             return True
 
         if not self._url:
-            logger.warning("ComfyUI URL 未配置，尝试加载本地缓存")
+            logger.warning("服务器 URL 未配置，尝试加载本地缓存")
             return self._load_from_file()
 
         try:
@@ -155,15 +156,15 @@ class ComfyUISchemaCache:
             self._last_fetch = time.time()
             self._loaded = True
             self._save_to_file()
-            logger.info(f"ComfyUI schema 缓存已刷新: {len(self._schemas)} 个节点类型")
+            logger.info(f"schema 缓存已刷新: {len(self._schemas)} 个节点类型")
             return True
         except httpx.HTTPError as e:
-            logger.warning(f"从 ComfyUI 获取 /object_info 失败: {e}")
+            logger.warning(f"从服务器获取 /object_info 失败: {e}")
             if not self._loaded:
                 return self._load_from_file()
             return False
         except (ValueError, KeyError) as e:
-            logger.warning(f"解析 ComfyUI /object_info 响应失败: {e}")
+            logger.warning(f"解析 /object_info 响应失败: {e}")
             if not self._loaded:
                 return self._load_from_file()
             return False
@@ -290,7 +291,7 @@ class ComfyUISchemaCache:
             self._parse_object_info(data)
             self._last_fetch = self._cache_file.stat().st_mtime
             self._loaded = True
-            logger.info(f"从本地缓存加载 ComfyUI schema: {len(self._schemas)} 个节点类型")
+            logger.info(f"从本地缓存加载 schema: {len(self._schemas)} 个节点类型")
             return True
         except Exception as e:
             logger.warning(f"加载本地 schema 缓存失败: {e}")
@@ -302,7 +303,7 @@ class ComfyUISchemaCache:
             return
         try:
             self._cache_file.parent.mkdir(parents=True, exist_ok=True)
-            # 保存原始 object_info 格式（便于直接用于 ComfyUI）
+            # 保存原始 object_info 格式（便于直接用于 Mosaic 后端）
             raw_data: dict[str, dict] = {}
             for class_type, schema in self._schemas.items():
                 raw_data[class_type] = {

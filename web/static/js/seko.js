@@ -36,7 +36,7 @@ async function loadSeko() {
     <div class="card">
       <h2>${t('seko.title')}</h2>
       <p class="dim">${t('seko.desc')}</p>
-      ${!sekoAvailable ? `<div style="background:#fef3cd;color:#856404;padding:.8rem;border-radius:6px;margin-top:.5rem">${t('seko.api_key_unset')}</div>` : ''}
+      ${!sekoAvailable ? `<div style="background:#e8f4fd;color:#0c5460;padding:.8rem;border-radius:6px;margin-top:.5rem">${t('seko.api_key_unset')}</div>` : ''}
     </div>
     <div class="card">
       <h3>${t('seko.new_proposal')}</h3>

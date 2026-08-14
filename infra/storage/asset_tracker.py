@@ -1,6 +1,6 @@
-"""ComfyUI 服务器资源跟踪 — 基于 PostgreSQL 持久化
+"""Mosaic 后端资源跟踪 — 基于 PostgreSQL 持久化
 
-通过 comfyui_assets 表记录哪些图片/LoRA 文件已上传到哪些服务器。
+通过 mosaic_assets 表记录哪些图片/LoRA 文件已上传到哪些服务器。
 项目删除重建时，数据库中 project_dir 对应的记录为空，自动触发重新上传。
 """
 from __future__ import annotations
@@ -10,11 +10,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["comfyui_asset_name", "AssetTracker"]
+__all__ = ["mosaic_asset_name", "AssetTracker"]
 
 
-def comfyui_asset_name(project_dir: str, char_id: str, filename: str) -> str:
-    """生成 ComfyUI 服务器端唯一文件名
+def mosaic_asset_name(project_dir: str, char_id: str, filename: str) -> str:
+    """生成 Mosaic 后端服务器端唯一文件名
 
     格式: proj_{hash8}_{char_id}_{filename}
     - project_dir 的 MD5 前 8 位：不同项目即使同名也不碰撞
@@ -28,9 +28,9 @@ def comfyui_asset_name(project_dir: str, char_id: str, filename: str) -> str:
 
 
 class AssetTracker:
-    """跟踪项目资源在各 ComfyUI 服务器上的存在状态
+    """跟踪项目资源在各 Mosaic 后端服务器上的存在状态
 
-    数据存储在 PostgreSQL 表 comfyui_assets 中，以 project 名称隔离。
+    数据存储在 PostgreSQL 表 mosaic_assets 中，以 project 名称隔离。
     """
 
     def __init__(self, project_dir: str):
@@ -70,10 +70,10 @@ class AssetTracker:
         """带跟踪的上传：已存在则跳过，不存在则上传并记录
 
         Args:
-            comfyui: ComfyUI 后端实例
+            comfyui: Mosaic 后端实例
             local_path: 本地文件路径
-            remote_name: ComfyUI 服务端文件名
-            server_url: ComfyUI 服务器 URL
+            remote_name: Mosaic 服务端文件名
+            server_url: Mosaic 服务器 URL
 
         Returns:
             True=上传了，False=跳过了
@@ -100,7 +100,7 @@ class AssetTracker:
 
     def _check(self, server_url: str, asset_type: str, filename: str) -> bool:
         try:
-            from infra.database.comfyui_assets import check
+            from infra.database.mosaic_assets import check
             from infra.database.pool import get_pool
             return check(get_pool(), server_url.rstrip("/"), asset_type, filename,
                          project=self._project)
@@ -109,7 +109,7 @@ class AssetTracker:
 
     def _mark(self, server_url: str, asset_type: str, filename: str) -> None:
         try:
-            from infra.database.comfyui_assets import mark
+            from infra.database.mosaic_assets import mark
             from infra.database.pool import get_pool
             mark(get_pool(), server_url.rstrip("/"), asset_type, filename,
                  project=self._project)
@@ -118,7 +118,7 @@ class AssetTracker:
 
     def _unmark(self, server_url: str, asset_type: str, filename: str) -> None:
         try:
-            from infra.database.comfyui_assets import unmark
+            from infra.database.mosaic_assets import unmark
             from infra.database.pool import get_pool
             unmark(get_pool(), server_url.rstrip("/"), asset_type, filename,
                    project=self._project)

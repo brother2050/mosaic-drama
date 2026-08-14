@@ -1,10 +1,10 @@
-"""ComfyUI 工作流预检器 — 在提交给 ComfyUI 之前全面检查工作流
+"""Mosaic 工作流预检器 — 在提交给 Mosaic 后端之前全面检查工作流
 
 WorkflowPreflightChecker: 预检器主类，执行 10 项检查规则。
 PreflightResult: 预检结果，包含通过/失败状态和详细问题列表。
 
 10 项预检规则:
-  1. 节点类型有效性 — 检查所有 class_type 是否在 ComfyUI 服务器上注册
+  1. 节点类型有效性 — 检查所有 class_type 是否在 Mosaic 后端上注册
   2. 悬空引用 — 检查所有节点引用是否指向存在的节点
   3. 必填输入缺失 — 检查关键节点的必填输入是否齐全
   4. 输出索引越界 — 检查引用的 output_index 是否超出目标节点的输出数量
@@ -138,13 +138,13 @@ MODEL_OUTPUT_NODES = ALL_MODEL_LOADERS | ALL_LORA_LOADERS | frozenset(
 
 
 class WorkflowPreflightChecker:
-    """工作流预检器 — 在提交给 ComfyUI 之前全面检查工作流
+    """工作流预检器 — 在提交给 Mosaic 后端之前全面检查工作流
 
     依赖 ComfyUISchemaCache 提供节点 schema 信息。
-    当 schema_cache 不可用（ComfyUI 离线）时，降级为仅做结构检查。
+    当 schema_cache 不可用时，降级为仅做结构检查。
 
     Attributes:
-        schema_cache: ComfyUI 节点 schema 缓存（None 时仅做结构检查）
+        schema_cache: 节点 schema 缓存（None 时仅做结构检查）
         strict: 是否严格模式（严格模式下 warning 也算失败）
     """
 
@@ -156,7 +156,7 @@ class WorkflowPreflightChecker:
         """执行全部预检
 
         Args:
-            workflow: ComfyUI 工作流 JSON（dict 格式）
+            workflow: 工作流 JSON（dict 格式，ComfyUI API 格式）
 
         Returns:
             PreflightResult 包含通过/失败状态和详细问题列表
@@ -195,14 +195,14 @@ class WorkflowPreflightChecker:
         return result
 
     def _check_node_types(self, graph: WorkflowGraph, result: PreflightResult) -> None:
-        """1. 节点类型有效性 — 检查所有 class_type 是否在 ComfyUI 服务器上注册"""
+        """1. 节点类型有效性 — 检查所有 class_type 是否在 Mosaic 后端上注册"""
         if not self._schema or not self._schema._loaded:
             return  # schema 不可用时跳过
         for node in graph.nodes.values():
             if not self._schema.has_node_type(node.class_type):
                 result.add_error(
                     node.node_id,
-                    f"未知节点类型: '{node.class_type}' 不在 ComfyUI 服务器已注册的节点列表中",
+                    f"未知节点类型: '{node.class_type}' 不在 Mosaic 后端已注册的节点列表中",
                 )
 
     def _check_dangling_refs(self, graph: WorkflowGraph, result: PreflightResult) -> None:
@@ -312,7 +312,7 @@ class WorkflowPreflightChecker:
         if file_val not in inp_def.valid_values:
             result.add_error(
                 node.node_id,
-                f"模型文件不存在: '{file_val}' 不在 ComfyUI 服务器的可用文件列表中"
+                f"模型文件不存在: '{file_val}' 不在 Mosaic 后端的可用文件列表中"
                 f"（共 {len(inp_def.valid_values)} 个文件可用）",
                 field_name,
             )

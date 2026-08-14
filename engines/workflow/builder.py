@@ -1,7 +1,7 @@
-"""ComfyUI 工作流构建器 — 从镜头配置构建可执行工作流
+"""Mosaic 工作流构建器 — 从镜头配置构建可执行工作流
 
 职责:
-- 加载 ComfyUI 工作流 JSON 模板
+- 加载 Mosaic 工作流 JSON 模板
 - 构建首帧生成工作流（含多角色一致性方案注入）
 - 构建视频生成工作流
 - 处理参考图上传映射
@@ -53,7 +53,7 @@ class WorkflowBuilderConfig:
     project_dir: str = ""
     wf_dir: str = ""
     registry: object = None  # ModelRegistry 实例
-    comfyui: object = None   # ComfyUI 后端实例
+    comfyui: object = None   # Mosaic 后端实例
     container: object = None # DI 容器
     force: bool = False
     no_auto_gen: bool = False  # 禁止自动触发定妆照生成（防止递归）
@@ -64,7 +64,7 @@ _wf_cache: dict[str, tuple[dict, float]] = {}  # 进程级缓存（按文件路�
 
 
 class WorkflowBuilder:
-    """ComfyUI 工作流构建器"""
+    """Mosaic 工作流构建器"""
 
     def __init__(self, cfg: WorkflowBuilderConfig):
         self.config = cfg.config
@@ -111,7 +111,7 @@ class WorkflowBuilder:
             try:
                 available_nodes = self.comfyui.get_available_node_types()
             except Exception as e:
-                logger.debug(f"获取 ComfyUI 节点类型失败: {e}")
+                logger.debug(f"获取 Mosaic 节点类型失败: {e}")
         self.available_nodes = available_nodes
 
         if not self.registry:
@@ -288,17 +288,17 @@ class WorkflowBuilder:
     def _lora_file_exists(self, lora_name: str) -> bool:
         """检查 LoRA 文件是否存在
 
-        搜索顺序：项目 loras/ → ComfyUI models/loras/
-        远程 ComfyUI 实例时 models_dir 为空，跳过本地检查让 ComfyUI 自行报错。
+        搜索顺序：项目 loras/ → Mosaic models/loras/
+        远程 Mosaic 实例时 models_dir 为空，跳过本地检查让 Mosaic 自行报错。
         """
         # 项目内 loras 目录
         if (self._paths.loras_dir / lora_name).exists():
             return True
-        # ComfyUI models 目录（从 comfyui 配置读取）
+        # Mosaic models 目录（从 comfyui 配置读取）
         comfyui_dir = self.config.get("comfyui", {}).get("models_dir", "")
         if comfyui_dir:
             return (Path(comfyui_dir) / "loras" / lora_name).exists()
-        # 远程 ComfyUI 时 models_dir 为空，无法本地校验，放行
+        # 远程 Mosaic 时 models_dir 为空，无法本地校验，放行
         return True
 
     @staticmethod
@@ -326,7 +326,7 @@ class WorkflowBuilder:
     # ── img2img 处理 ────────────────────────────────────────
 
     def _setup_img2img(self, wf: dict, shot: dict, backend_meta: dict) -> None:
-        """img2img 后端：上传参考图到 ComfyUI 并注入 LoadImage 节点
+        """img2img 后端：上传参考图到 Mosaic 并注入 LoadImage 节点
 
         参考图来源优先级：
         1. shot 的 outfit 对应的服装参考图
@@ -342,14 +342,14 @@ class WorkflowBuilder:
                 logger.info("img2img 后端无角色参考图，将按 denoise=1 纯文本生成")
             return
 
-        # 上传到 ComfyUI
+        # 上传到 Mosaic
         if self.comfyui and hasattr(self.comfyui, 'upload_image'):
             try:
                 upload_name = f"img2img_ref_{Path(ref_image).name}"
                 self.comfyui.upload_image(ref_image, filename=upload_name)
                 ref_image = upload_name
             except Exception as e:
-                raise RuntimeError(f"参考图上传到 ComfyUI 失败: {e}")
+                raise RuntimeError(f"参考图上传到 Mosaic 失败: {e}")
 
         # 设置 LoadImage 节点的输入图片（排除 IP-Adapter/PuLID 一致性节点）
         all_load = [nid for nid, n in wf.items() if n.get("class_type") == "LoadImage"]
@@ -505,13 +505,13 @@ class WorkflowBuilder:
                 chars_without_lora.append(cid)
 
         # 注入 LoRA
-        from infra.storage.asset_tracker import comfyui_asset_name
+        from infra.storage.asset_tracker import mosaic_asset_name
         for item in chars_with_lora:
             cid, lora_path = item["cid"], item["lora_path"]
             strength = (lora_overrides or {}).get("character_lora_strength")
             if strength is None:
                 strength = self.models.get("character_lora_strength", 0.7)
-            name = comfyui_asset_name(self.project_dir, Path(lora_path).stem, Path(lora_path).name)
+            name = mosaic_asset_name(self.project_dir, Path(lora_path).stem, Path(lora_path).name)
             wf = _inject_lora(wf, lora_path, strength=strength, lora_name=name)
             logger.info(f"使用角色 LoRA: {cid} → {lora_path} (strength={strength})")
 
@@ -630,7 +630,7 @@ class WorkflowBuilder:
                 if not name:
                     continue
                 if not self._lora_file_exists(name):
-                    logger.warning(f"全局 LoRA 文件不存在，跳过: {name}（请放入 ComfyUI/models/loras/）")
+                    logger.warning(f"全局 LoRA 文件不存在，跳过: {name}（请放入 Mosaic/models/loras/）")
                     continue
                 strength = lora.get("global_lora_strength")
                 if strength is None:
@@ -655,7 +655,7 @@ class WorkflowBuilder:
         else:
             self._randomize_seed(wf)
 
-        # 7. 工作流预检（组装后全面校验，不连接 ComfyUI）
+        # 7. 工作流预检（组装后全面校验，不连接 Mosaic 后端）
         from engines.workflow.preflight import WorkflowPreflightChecker
         preflight = WorkflowPreflightChecker(
             schema_cache=getattr(self, "_schema_cache", None),

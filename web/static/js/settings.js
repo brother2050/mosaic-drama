@@ -22,9 +22,6 @@ function _updateUrl(prefix) {
   const cfg = _cache.get('sysconfig')?.data || {};
   const inp = document.getElementById(`cfg-${prefix}-url`);
   if (inp) inp.value = cfg.models?.[key]?.api_url || '';
-  // 同步 API Key 字段
-  const keyInp = document.getElementById(`cfg-${prefix}-key`);
-  if (keyInp) keyInp.value = cfg.models?.[key]?.api_key || '';
 }
 
 function _resolveBackendUrl(cfg, prefix) {
@@ -47,8 +44,8 @@ async function loadSettings() {
     const training = sysCfg.training || {};
     // 从模型注册表动态获取后端列表（降级为硬编码兜底）
     const ttsBackends = Object.keys(backends.tts || {}).length ? Object.keys(backends.tts) : ['mosaic'];
-    const lsBackends = Object.keys(backends.lipsync || {}).length ? Object.keys(backends.lipsync) : ['musetalk', 'sadtalker', 'wav2lip'];
-    const llmBackends = Object.keys(backends.llm || {}).length ? Object.keys(backends.llm) : ['openai', 'ollama'];
+    const lsBackends = Object.keys(backends.lipsync || {}).length ? Object.keys(backends.lipsync) : ['mosaic'];
+    const llmBackends = Object.keys(backends.llm || {}).length ? Object.keys(backends.llm) : ['mosaic'];
     const imageBackends = Object.keys(backends.image || {});
     const videoBackends = Object.keys(backends.video || {});
     const curImageBackend = sysCfg.models?.image_backend || 'sd15';
@@ -59,7 +56,7 @@ async function loadSettings() {
       <div class="card"><h2>💻 ${t('set.env')}</h2><div class="info-grid"><div><span class="dim">${t('set.os')}:</span> ${env.os}</div><div><span class="dim">${t('set.python')}:</span> ${env.python}</div></div></div>
       <div class="card"><h2>${t('set.presets')}</h2>
         <div class="preset-btns">
-          <button class="preset-btn" onclick="applyPreset('local_comfyui')">${t('set.preset_local')}</button>
+          <button class="preset-btn" onclick="applyPreset('local_mosaic')">${t('set.preset_local')}</button>
           <button class="preset-btn" onclick="applyPreset('cloud_siliconflow')">${t('set.preset_cloud')}</button>
           <button class="preset-btn" onclick="applyPreset('ollama_local')">${t('set.preset_ollama')}</button>
         </div>
@@ -67,20 +64,18 @@ async function loadSettings() {
       <div class="card"><h2>🔧 系统配置</h2>
         ${_backendSection(t('set.tts'), '🎤', 'tts', ttsBackends, tts.backend, tts.url, tools.tts?.available, tools.tts?.reason, { showApiKey: true, apiKey: sysCfg.models?.[tts.backend.replace(/-/g, '_')]?.api_key || '', showTest: true })}
         ${_backendSection(t('set.lipsync'), '👄', 'lipsync', lsBackends, ls.backend, ls.url, tools.lipsync?.available, tools.lipsync?.reason)}
-        <div class="config-section"><h3>🎨 ComfyUI</h3>
-          <div class="form-row"><label>${t('set.address')}</label><input id="cfg-comfyui" value="${esc(sysCfg.comfyui?.url || '')}"></div>
-          <div class="form-row"><label>API Key</label><input id="cfg-comfyui-key" value="${esc(sysCfg.comfyui?.api_key || '')}" placeholder="${t('set.optional')}"></div>
+        <div class="config-section"><h3>🎨 Mosaic 图像生成</h3>
+          <p class="dim" style="font-size:.85rem;margin-bottom:.5rem">Mosaic 离线模式，无需配置 URL 和 API Key</p>
           ${imageBackends.length ? `<div class="form-row"><label>${t('set.image_backend')}</label><select id="cfg-image-backend">${imageBackends.map(b => `<option value="${b}" ${curImageBackend===b?'selected':''}>${b}</option>`).join('')}</select></div>` : ''}
           ${videoBackends.length ? `<div class="form-row"><label>${t('set.video_backend')}</label><select id="cfg-video-backend">${videoBackends.map(b => `<option value="${b}" ${curVideoBackend===b?'selected':''}>${b}</option>`).join('')}</select></div>` : ''}
-          <div class="tool-status-inline"><span class="status-dot ${tools.comfyui?.available ? 'ok' : 'err'}"></span>${tools.comfyui?.available ? t('dash.available') : tools.comfyui?.reason || t('dash.unavailable')}
-            <button class="btn btn-xs btn-outline" onclick="testTool('comfyui')" id="test-btn-comfyui">🔌 ${t('set.test')}</button>
-            <span id="test-result-comfyui" class="dim" style="font-size:0.8rem;margin-left:0.3rem"></span></div></div>
+          <div class="tool-status-inline"><span class="status-dot ${tools.image?.available ? 'ok' : 'err'}"></span>${tools.image?.available ? t('dash.available') : tools.image?.reason || t('dash.unavailable')}
+            <button class="btn btn-xs btn-outline" onclick="testTool('image')" id="test-btn-image">🔌 ${t('set.test')}</button>
+            <span id="test-result-image" class="dim" style="font-size:0.8rem;margin-left:0.3rem"></span></div></div>
         <div class="config-section"><h3>🧠 ${t('set.llm')}</h3>
           <div class="form-row"><label>${t('set.llm_enabled')}</label><select id="cfg-llm-enabled"><option value="false" ${!llm.enabled ? 'selected' : ''}>${lang==='zh'?'关闭':'Off'}</option><option value="true" ${llm.enabled ? 'selected' : ''}>${lang==='zh'?'开启':'On'}</option></select></div>
           <div class="form-row"><label>${t('set.backend')}</label><select id="cfg-llm-backend">${llmBackends.map(b => `<option value="${b}" ${llm.backend===b?'selected':''}>${b}</option>`).join('')}</select></div>
-          <div class="form-row"><label>API URL</label><input id="cfg-llm-url" value="${esc(llm.base_url || '')}"></div>
+          <div class="form-row"><label>模型服务</label><span class="dim" style="font-size:.85rem">Mosaic 离线 LLM，无需配置 API URL</span></div>
           <div class="form-row"><label>${t('set.llm_model')}</label><input id="cfg-llm-model" value="${esc(llm.model || '')}"></div>
-          <div class="form-row"><label>API Key</label><div style="display:flex;gap:.3rem;flex:1"><input id="cfg-llm-key" type="password" value="${esc(llm.api_key || '')}" style="flex:1"><button class="btn btn-xs btn-outline" onclick="_toggleKeyVis()" id="cfg-llm-key-toggle">👁</button></div></div>
           <div class="form-row"><label>Stream</label><select id="cfg-llm-stream"><option value="false" ${!llm.stream ? 'selected' : ''}>Off</option><option value="true" ${llm.stream ? 'selected' : ''}>On</option></select></div>
           <div class="tool-status-inline"><span class="status-dot ${tools.llm?.available ? 'ok' : 'err'}"></span>${tools.llm?.available ? t('dash.available') : tools.llm?.reason || t('dash.unavailable')}
             <button class="btn btn-xs btn-outline" onclick="testTool('llm')" id="test-btn-llm">🔌 ${t('set.test')}</button>
@@ -93,12 +88,10 @@ async function loadSettings() {
             <option value="5" ${localStorage.getItem('drama_concurrency')==='5'?'selected':''}>5</option>
           </select></div></div>
         <div class="config-section"><h3>🎬 Seko 影视策划</h3>
-          <div class="form-row"><label>API Key</label><div style="display:flex;gap:.3rem;flex:1"><input id="cfg-seko-key" type="password" value="${esc(sysCfg.seko?.api_key || '')}" style="flex:1" placeholder="获取: seko.sensetime.com/explore"><button class="btn btn-xs btn-outline" onclick="_toggleKeyVis('cfg-seko-key','cfg-seko-key-toggle')" id="cfg-seko-key-toggle">👁</button></div></div>
           <div class="tool-status-inline"><span class="status-dot ${tools.seko?.available ? 'ok' : 'err'}"></span>${tools.seko?.available ? t('dash.available') : tools.seko?.reason || t('dash.unavailable')}</div></div>
         <div class="config-section"><h3>🏋 ${t('set.training')}</h3>
           <div class="form-row"><label>${t('set.backend')}</label><select id="cfg-training-backend"><option value="ai-toolkit" ${training.backend === 'ai-toolkit' || !training.backend ? 'selected' : ''}>AI Toolkit</option></select></div>
           <div class="form-row"><label>${t('set.address')}</label><input id="cfg-training-url" value="${esc(training.api_url || '')}" placeholder="http://127.0.0.1:7860"></div>
-          <div class="form-row"><label>API Key</label><div style="display:flex;gap:.3rem;flex:1"><input id="cfg-training-key" type="password" value="${esc(training.api_key || '')}" style="flex:1" placeholder="${t('set.optional')}（Docker 部署时需要）"><button class="btn btn-xs btn-outline" onclick="_toggleKeyVis('cfg-training-key','cfg-training-key-toggle')" id="cfg-training-key-toggle">👁</button></div></div>
           <div class="form-row"><label>${t('set.training_timeout')}</label><input id="cfg-training-timeout" type="number" value="${training.timeout || 3600}" min="60" max="86400"></div>
           <div class="form-row"><label>${t('set.training_poll')}</label><input id="cfg-training-poll" type="number" value="${training.poll_interval || 10}" min="5" max="120"></div>
           <div class="tool-status-inline"><span class="status-dot ${tools.training?.available ? 'ok' : 'err'}"></span>${tools.training?.available ? t('dash.available') : tools.training?.reason || t('dash.unavailable')}
@@ -128,8 +121,6 @@ async function saveCfg() {
     const lsKey = lsBackend.replace(/-/g, '_');
     const lsUrl = $val('cfg-lipsync-url');
     if (lsUrl) sys.models[lsKey] = { api_url: lsUrl };
-    // ComfyUI
-    sys.comfyui = { url: $val('cfg-comfyui'), api_key: $val('cfg-comfyui-key') };
     // Image / Video backend
     const imageBackend = $val('cfg-image-backend');
     const videoBackend = $val('cfg-video-backend');
@@ -137,17 +128,13 @@ async function saveCfg() {
     if (videoBackend) sys.models.video_backend = videoBackend;
     // LLM
     const llmEnabled = $val('cfg-llm-enabled') === 'true';
-    sys.llm = { enabled: llmEnabled, backend: $val('cfg-llm-backend'), base_url: $val('cfg-llm-url'), model: $val('cfg-llm-model'), api_key: $val('cfg-llm-key'), stream: $val('cfg-llm-stream') === 'true' };
-    // Seko
-    const sekoKey = $val('cfg-seko-key');
-    if (sekoKey) sys.seko = { api_key: sekoKey };
+    sys.llm = { enabled: llmEnabled, backend: $val('cfg-llm-backend'), model: $val('cfg-llm-model') };
     // Training
     const trainingBackend = $val('cfg-training-backend');
     const trainingUrl = $val('cfg-training-url');
-    const trainingApiKey = $val('cfg-training-key');
     const trainingTimeout = parseInt($val('cfg-training-timeout')) || 3600;
     const trainingPoll = parseInt($val('cfg-training-poll')) || 10;
-    sys.training = { backend: trainingBackend, api_url: trainingUrl, api_key: trainingApiKey || '', timeout: trainingTimeout, poll_interval: trainingPoll };
+    sys.training = { backend: trainingBackend, api_url: trainingUrl, timeout: trainingTimeout, poll_interval: trainingPoll };
 
     await api('/system/config', { method: 'POST', body: sys });
     toast(t('toast.saved'));
