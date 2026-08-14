@@ -53,8 +53,8 @@ def test_project_dir(tmp_path):
 
     cfg = {
         "project": {"name": "测试项目", "episodes": 1, "fps": 24, "style": "cinematic", "genre": "urban"},
-        "models": {"tts_backend": "mosaic", "image_backend": "cosmos", "video_backend": "cosmos-video"},
-        "comfyui": {"url": "http://127.0.0.1:8188"},
+        "models": {"tts_backend": "mosaic", "image_backend": "mosaic", "video_backend": "mosaic"},
+        "llm": {"enabled": True, "backend": "mosaic", "model": "default"},
     }
     (config_dir / "project.yaml").write_text(yaml.dump(cfg, allow_unicode=True), encoding="utf-8")
     return proj

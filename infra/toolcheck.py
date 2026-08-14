@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["check_tool", "reset_registry", "ping_openai_chat"]
+__all__ = ["check_tool", "reset_registry"]
 
 # 工具状态缓存 — 使用 HealthCache 统一管理
 from infra.globals import get_health_cache  # noqa: E402
@@ -179,49 +179,6 @@ def _hc_ollama(name: str, hc: dict, cfg: dict, backend: str, result_type: str = 
     return _result(ok, backend, result_type, reason)
 
 
-def ping_openai_chat(url: str, api_key: str = "", model: str = "",
-                     env_key: str = "") -> tuple[bool, str]:
-    """OpenAI 兼容 API 连通性检测 — POST /chat/completions, max_tokens=1
-
-    所有调用方（Web 面板 / CLI / 后台巡检）共用此函数，零重复。
-    支持环境变量回退: api_key 为空时自动读 os.environ[env_key]。
-    """
-    from infra.http_pool import get_fast_client, auth_headers
-
-    key = api_key or (os.environ.get(env_key, "") if env_key else "")
-    headers = auth_headers(key) if key else {}
-    ensure_model = model or "ping"
-
-    try:
-        r = get_fast_client().post(
-            f"{url.rstrip('/')}/chat/completions",
-            headers=headers,
-            json={"model": ensure_model, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 1})
-        if r.status_code in (401, 403):
-            return False, f"API Key 无效 ({r.status_code})"
-        if r.status_code == 200:
-            return True, ""
-        return False, f"HTTP {r.status_code}"
-    except Exception as e:
-        return False, str(e)
-
-
-def _hc_openai_chat(name: str, hc: dict, cfg: dict, backend: str, result_type: str = "cloud") -> dict:
-    """openai_chat 类型检查"""
-    url = _get_cfg_value(cfg, hc.get("config_key", ""))
-    if not url:
-        return _result(False, backend, "cloud", "LLM 地址未配置")
-    llm_enabled = cfg.get("llm", {}).get("enabled")
-    if llm_enabled is None or str(llm_enabled).lower() in ("false", "0", ""):
-        return _result(False, backend, result_type, "LLM 未启用")
-    model = cfg.get("llm", {}).get("model", "")
-    api_key = _get_cfg_value(cfg, hc.get("api_key_from", ""))
-    ok, reason = ping_openai_chat(url, api_key=api_key, model=model, env_key="LLM_API_KEY")
-    if not ok and not reason:
-        reason = f"LLM 连接失败 ({url})"
-    return _result(ok, backend, result_type, reason)
-
-
 def _hc_command(name: str, hc: dict, backend: str) -> dict:
     """command 类型检查"""
     cmd = hc.get("command", "")
@@ -261,7 +218,6 @@ def _execute_health_check(name: str, hc: dict, cfg: dict,
         "api_key_env": lambda: _hc_api_key(name, hc, cfg, b),
         "http": lambda: _hc_http(name, hc, cfg, b, t),
         "ollama_tags": lambda: _hc_ollama(name, hc, cfg, b, t),
-        "openai_chat": lambda: _hc_openai_chat(name, hc, cfg, b, t),
         "command": lambda: _hc_command(name, hc, b),
         "port": lambda: _hc_port(name, hc, b),
         "celery_active": lambda: _hc_celery(name, b),
@@ -282,25 +238,18 @@ def _check_consistency(name: str, cfg: dict, registry: ModelRegistry, method: di
         if isinstance(method_cfg, dict) and method_cfg.get("enabled") is False:
             return _result(False, name, "gpu", f"{name} 已禁用")
 
-    # 检查 ComfyUI 是否可达（从注册表读取 URL，不硬编码）
-    comfyui_meta = registry.get_service_meta("comfyui") or {}
-    comfyui_hc = comfyui_meta.get("health_check", {})
-    comfyui_url = _get_cfg_value(cfg, comfyui_hc.get("config_key", "comfyui.url"))
-    comfyui_key_from = comfyui_hc.get("api_key_from", "comfyui.api_key")
-    headers = _resolve_auth(cfg, comfyui_key_from)
-    comfyui_ok = _url_ok(comfyui_url, "/system_stats", headers=headers)
-    if not comfyui_ok:
-        return _result(False, name, "gpu",
-                       f"ComfyUI 不可达 ({comfyui_url})。请确认 ComfyUI 已启动: https://github.com/comfyanonymous/ComfyUI")
-
-    # 获取模型名
-    model_name = ""
-    if config_key:
-        model_cfg = cfg.get(config_key, {})
-        if isinstance(model_cfg, dict):
-            model_name = model_cfg.get("model", "")
-    return _result(True, name, "gpu",
-                   f"{name} ({model_name})" if model_name else f"{name}")
+    # Mosaic 离线模式：一致性方案依赖 Mosaic 框架，检查 import 即可
+    try:
+        import mosaic  # noqa: F401
+        model_name = ""
+        if config_key:
+            model_cfg = cfg.get(config_key, {})
+            if isinstance(model_cfg, dict):
+                model_name = model_cfg.get("model", "")
+        return _result(True, name, "gpu",
+                       f"{name} ({model_name})" if model_name else f"{name}")
+    except ImportError:
+        return _result(False, name, "gpu", "Mosaic 框架未安装")
 
 
 def _check_service_type_backend(service_type: str, cfg: dict, registry: ModelRegistry) -> dict:

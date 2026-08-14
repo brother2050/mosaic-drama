@@ -194,7 +194,6 @@ class ConfigUpdate(BaseModel):
 class SystemConfigUpdate(BaseModel):
     """系统全局配置更新 — 白名单字段 + 类型校验"""
     models: dict | None = None
-    comfyui: dict | None = None
     llm: dict | None = None
     seko: dict | None = None
     training: dict | None = None

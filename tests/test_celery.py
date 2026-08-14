@@ -163,10 +163,10 @@ def test_step_tts_shot_not_found(test_project):
 # ── 首帧任务 Mock ──
 
 def test_step_first_frame_tool_unavailable(test_project):
-    """首帧任务: ComfyUI 不可用"""
+    """首帧任务: Mosaic 不可用"""
     from pipeline.tasks import step_first_frame
 
-    with patch("pipeline.tasks.helpers._check_available", return_value=(False, "ComfyUI 不可达")):
+    with patch("pipeline.tasks.helpers._check_available", return_value=(False, "Mosaic 不可用")):
         result = step_first_frame.apply(args=[f"{test_project}/config/project.yaml", 1, "001"]).get()
         assert result["status"] == "skipped"
 

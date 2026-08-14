@@ -305,10 +305,10 @@ def raise_not_found(entity_type: str, entity_id: str = "") -> None:
 
 
 def _submit_entity_task(yaml_dir: str, entity_id: str, label: str,
-                         task_fn, *args, require_comfyui: bool = False, **kwargs) -> dict:
-    """通用实体生成任务提交：检查存在 → 可选检查 ComfyUI → 提交任务"""
+                         task_fn, *args, require_image: bool = False, **kwargs) -> dict:
+    """通用实体生成任务提交：检查存在 → 可选检查图像后端 → 提交任务"""
     _check_id(entity_id, f"{label} ID")
     _check_entity_exists(yaml_dir, entity_id, label)
-    if require_comfyui:
-        require_tool("comfyui")
+    if require_image:
+        require_tool("image")
     return _submit_task(task_fn, _cfg_path(), entity_id, *args, **kwargs)

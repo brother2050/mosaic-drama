@@ -272,17 +272,8 @@ class Container:
         service_cfg = self._config.get(service_type, {})
         if isinstance(service_cfg, dict):
             cfg.update(service_cfg)
-        # image/video 后端自动继承 comfyui 顶层配置（url / api_key）
-        if service_type in ("image", "video"):
-            comfyui_cfg = self._config.get("comfyui", {})
-            if isinstance(comfyui_cfg, dict):
-                # 不覆盖已有的显式配置
-                for field in ("url", "api_key"):
-                    if field not in cfg or not cfg[field]:
-                        cfg[field] = comfyui_cfg.get(field, "")
-                # video 后端需要 comfyui_url
-                if service_type == "video" and "comfyui_url" not in cfg:
-                    cfg["comfyui_url"] = comfyui_cfg.get("url", "")
+        # Mosaic 离线模式：image/video 后端不需要 url/api_key 配置
+        # （全部使用 Mosaic 框架的本地推理）
         return cfg
 
     def reload(self, new_config: dict) -> list[str]:

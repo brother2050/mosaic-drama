@@ -1,5 +1,5 @@
 # AI 短剧管线 v2 — 项目配置
-# 系统级配置（ComfyUI、TTS、LLM 等）请编辑 config/system.yaml
+# 系统级配置（Mosaic、TTS、LLM 等）请编辑 config/system.yaml
 
 project:
   name: "AI短剧"
@@ -14,9 +14,13 @@ project:
 #   auto_outfit: false  # 管线自动生成 outfit 参考图（默认 true，设为 false 仅生成主图）
 
 # 项目级覆盖（可选，取消注释可覆盖系统配置）
-# comfyui:
-#   url: "http://192.168.1.100:8188"
-# models:
-#   tts_backend: "mosaic"   # Mosaic 离线语音合成（默认，无需 API Key）
-# llm:
-#   enabled: true
+models:
+  tts_backend: "mosaic"
+  image_backend: "mosaic"
+  video_backend: "mosaic"
+  lip_sync_backend: "mosaic"
+  music_backend: "mosaic"
+llm:
+  enabled: true
+  backend: "mosaic"
+  model: "default"

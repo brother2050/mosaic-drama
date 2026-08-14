@@ -114,9 +114,9 @@ def register_system_commands(cli):
         except Exception:
             cfg = {}
 
-        comfyui_ok, comfyui_url = _check_comfyui(cfg)
-        table.add_row("ComfyUI", "[green]✅[/green]" if comfyui_ok else "[yellow]⚠[/yellow]",
-                       comfyui_url, "图片/视频生成")
+        mosaic_ok, mosaic_msg = _check_mosaic(cfg)
+        table.add_row("Mosaic", "[green]✅[/green]" if mosaic_ok else "[yellow]⚠[/yellow]",
+                       mosaic_msg, "离线 AI 生成（图片/视频/TTS等）")
 
         from infra.config.registry import ModelRegistry as _MR
         try:
@@ -125,16 +125,16 @@ def register_system_commands(cli):
             _reg = None
         _check_tts(cfg, _reg, table)
 
-        llm_ok, llm_backend, llm_base_url, llm_enabled = _check_llm(cfg)
+        llm_ok, llm_backend, llm_model, llm_enabled = _check_llm(cfg)
         if not llm_enabled:
             table.add_row(f"LLM ({llm_backend})", "[yellow]⚠ 未启用[/yellow]",
-                           llm_base_url or "-", "AI 生成（在 project.yaml 中设置 llm.enabled: true）")
+                           llm_model or "-", "AI 生成（在 project.yaml 中设置 llm.enabled: true）")
         else:
-            table.add_row(f"LLM ({llm_backend})", "[green]✅[/green]" if llm_ok else "[red]❌ 连接失败[/red]",
-                           llm_base_url, "AI 内容生成")
+            table.add_row(f"LLM ({llm_backend})", "[green]✅[/green]" if llm_ok else "[red]❌ 不可用[/red]",
+                           llm_model or "-", "AI 内容生成")
 
         console.print(table)
-        _print_status_warnings(redis, celery_ok, llm_enabled, llm_ok, llm_base_url)
+        _print_status_warnings(redis, celery_ok, llm_enabled, llm_ok, llm_model)
 
     @cli.command()
     def env() -> None:
@@ -277,33 +277,28 @@ def _check_celery(redis_ok: bool) -> bool:
         return False
 
 
-def _check_comfyui(cfg: dict) -> tuple[bool, str]:
-    url = cfg.get("comfyui", {}).get("url", "")
-    if not url:
-        return False, ""
+def _check_mosaic(cfg: dict) -> tuple[bool, str]:
+    """检查 Mosaic 框架是否可用（离线模式核心依赖）"""
     try:
-        from infra.http_pool import get_fast_client, auth_headers
-        api_key = cfg.get("comfyui", {}).get("api_key", "")
-        headers = auth_headers(api_key, content_type="") if api_key else {}
-        r = get_fast_client().get(f"{url}/system_stats", headers=headers)
-        return r.status_code == 200, url
-    except Exception:
-        return False, url
+        import mosaic  # noqa: F401
+        return True, "已安装"
+    except ImportError:
+        return False, "未安装"
 
 
 def _check_llm(cfg: dict) -> tuple[bool, str, str, bool]:
     llm_cfg = cfg.get("llm", {})
     enabled = llm_cfg.get("enabled", False)
-    backend = llm_cfg.get("backend", "openai")
-    base_url = llm_cfg.get("base_url", "")
+    backend = llm_cfg.get("backend", "mosaic")
+    model = llm_cfg.get("model", "")
     if not enabled:
-        return False, backend, base_url, False
-    if not base_url:
-        return False, backend, base_url, True
-    from infra.toolcheck import ping_openai_chat
-    ok, _ = ping_openai_chat(base_url, api_key=llm_cfg.get("api_key", ""),
-                             model=llm_cfg.get("model", ""), env_key="LLM_API_KEY")
-    return ok, backend, base_url, True
+        return False, backend, model, False
+    # Mosaic 离线模式：检查 Mosaic 框架可用即可
+    try:
+        import mosaic  # noqa: F401
+        return True, backend, model, True
+    except ImportError:
+        return False, backend, model, True
 
 
 def _check_tts(cfg: dict, reg, table: Table):
@@ -330,12 +325,12 @@ def _check_tts(cfg: dict, reg, table: Table):
                        api_url or "-", "语音合成")
 
 
-def _print_status_warnings(redis, celery_ok, llm_enabled, llm_ok, llm_base_url):
+def _print_status_warnings(redis, celery_ok, llm_enabled, llm_ok, llm_model):
     if not redis or not celery_ok:
         console.print("\n[red]⚠ Redis 和 Celery Worker 是必选依赖[/red]")
     if llm_enabled and not llm_ok:
-        console.print("\n[yellow]⚠ LLM 已启用但连接失败[/yellow]")
-        console.print(f"  检查地址: {llm_base_url}")
+        console.print("\n[yellow]⚠ LLM 已启用但 Mosaic 框架不可用[/yellow]")
+        console.print(f"  模型: {llm_model}")
 
 
 # ── setup 子功能 ──────────────────────────────────

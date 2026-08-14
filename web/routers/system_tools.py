@@ -56,7 +56,7 @@ def _collect_tools(cfg: dict) -> dict:
             if method_meta.get("config_key"):
                 names.append(method_name)
     except Exception:
-        names = ["redis", "celery", "tts", "comfyui", "lipsync", "llm", "music", "ffmpeg", "seko", "training", "ip_adapter", "pulid_flux"]
+        names = ["redis", "celery", "tts", "image", "lipsync", "llm", "music", "ffmpeg", "seko", "training", "ip_adapter", "pulid_flux"]
     tools = {}
     futures = {_tool_executor.submit(_check_tool, name, cfg): name for name in names}
     try:
@@ -230,14 +230,16 @@ def _resolve_health_check(name: str, reg, cfg: dict) -> dict | None:
         method_cfg = cfg.get(config_key, {})
         model = method_cfg.get("model", "")
         weight = method_cfg.get("weight", "")
-        comfyui_ok = _check_tool("comfyui", cfg).get("available")
         if not method_cfg.get("enabled", True):
             return {"ok": False, "name": name, "message": f"{name} 未启用"}
-        if not comfyui_ok:
-            return {"ok": False, "name": name, "message": f"ComfyUI 不可达（{name} 依赖 ComfyUI）"}
-        return {"ok": True, "name": name,
-                "message": f"{name}: {model} (weight={weight})",
-                "model": model, "weight": weight}
+        # Mosaic 离线模式：一致性方案依赖 Mosaic 框架
+        try:
+            import mosaic  # noqa: F401
+            return {"ok": True, "name": name,
+                    "message": f"{name}: {model}" + (f" (weight={weight})" if weight else ""),
+                    "model": model, "weight": weight}
+        except ImportError:
+            return {"ok": False, "name": name, "message": "Mosaic 框架未安装"}
 
     return None
 
@@ -252,11 +254,6 @@ def _hc_handle_http(name: str, hc: dict, cfg: dict, result: dict) -> dict:
     api_key = _cfg_get(cfg, api_key_from) if api_key_from else ""
     headers = auth_headers(api_key, content_type="") if api_key else {}
     r = get_fast_client().get(api_url + hc.get("path", "/"), headers=headers)
-    if name == "comfyui" and r.status_code == 200:
-        data = r.json()
-        vram = data.get("devices", [{}])[0].get("vram_total", 0) if data.get("devices") else 0
-        msg = "连接成功" + (f" · VRAM {vram // 1024 // 1024}MB" if vram else "")
-        return {"ok": True, "name": name, "message": msg, **result}
     return {"ok": True, "name": name, "message": f"{hc.get('_backend_name', name)} 连接成功 (HTTP {r.status_code})", **result}
 
 
@@ -301,16 +298,14 @@ def _hc_handle_ollama(name: str, hc: dict, cfg: dict, result: dict) -> dict:
     return {"ok": True, "name": name, "message": f"Ollama 连接成功 · {len(models)} 模型", "models": models, **result}
 
 
-def _hc_handle_openai_chat(name: str, hc: dict, cfg: dict, result: dict) -> dict:
-    """OpenAI 兼容 API 连接检测（POST /chat/completions，适用所有服务商）"""
-    from infra.toolcheck import ping_openai_chat
-    base_url = _cfg_get(cfg, hc.get("config_key", ""))
-    api_key = _cfg_get(cfg, hc.get("api_key_from", ""))
-    model = cfg.get("llm", {}).get("model", "unknown")
-    ok, reason = ping_openai_chat(base_url, api_key=api_key, model=model, env_key="LLM_API_KEY")
-    if not ok:
-        return {"ok": False, "name": name, "message": reason or f"连接失败: {base_url}", **result}
-    return {"ok": True, "name": name, "message": f"LLM 连接成功 · {model}", **result}
+def _hc_handle_mosaic_llm(name: str, hc: dict, cfg: dict, result: dict) -> dict:
+    """Mosaic 离线 LLM 检测"""
+    try:
+        import mosaic  # noqa: F401
+        model = cfg.get("llm", {}).get("model", "unknown")
+        return {"ok": True, "name": name, "message": f"Mosaic LLM 就绪 · {model}", **result}
+    except ImportError:
+        return {"ok": False, "name": name, "message": "Mosaic 框架未安装", **result}
 
 
 def _hc_handle_training(name: str, hc: dict, cfg: dict, result: dict) -> dict:
@@ -352,7 +347,7 @@ def _run_health_check(name: str, hc: dict, cfg: dict, result: dict, reg) -> dict
         "port": lambda: _hc_handle_port(*_HC_ARGS),
         "celery_active": lambda: _hc_handle_celery(*_HC_ARGS),
         "ollama_tags": lambda: _hc_handle_ollama(*_HC_ARGS),
-        "openai_chat": lambda: _hc_handle_openai_chat(*_HC_ARGS),
+        "mosaic_llm": lambda: _hc_handle_mosaic_llm(*_HC_ARGS),
     }
 
     handler = _HANDLERS.get(hc_type)
@@ -364,32 +359,15 @@ def _run_health_check(name: str, hc: dict, cfg: dict, result: dict, reg) -> dict
 
 
 def _test_llm(cfg: dict, result: dict) -> dict:
-    """LLM 连接测试（忽略 enabled 开关，直接测）"""
+    """LLM 连接测试（Mosaic 离线模式）"""
     name = "llm"
     llm_cfg = cfg.get("llm", {})
-    base_url = llm_cfg.get("base_url", "")
-    if not base_url:
-        return {"ok": False, "name": name, "message": "未配置 API URL", **result}
-
-    from infra.config.registry import ModelRegistry
-    reg = ModelRegistry()
-    backend = llm_cfg.get("backend", "openai")
-    hc = reg.get_health_check("llm", backend)
-    hc_type = hc.get("type", "") if hc else ""
-
-    # 构造临时 hc dict，复用 _hc_handle_ollama / _hc_handle_openai
-    fake_hc = {"config_key": "llm.base_url"}
+    model = llm_cfg.get("model", "unknown")
     try:
-        if hc_type == "ollama_tags":
-            return _hc_handle_ollama(name, fake_hc, cfg, result)
-        return _hc_handle_openai_chat(name, fake_hc, cfg, result)
-    except Exception as e:
-        ename = type(e).__name__
-        if "Connect" in ename:
-            return {"ok": False, "name": name, "message": f"连接被拒绝: {base_url}", **result}
-        if "Timeout" in ename:
-            return {"ok": False, "name": name, "message": f"连接超时: {base_url}", **result}
-        return {"ok": False, "name": name, "message": f"连接失败: {e}", **result}
+        import mosaic  # noqa: F401
+        return {"ok": True, "name": name, "message": f"Mosaic LLM 就绪 · {model}", **result}
+    except ImportError:
+        return {"ok": False, "name": name, "message": "Mosaic 框架未安装", **result}
 
 
 # ══════════════════════════════════════════════════════════

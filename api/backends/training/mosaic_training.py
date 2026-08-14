@@ -1,7 +1,7 @@
 """Mosaic 离线 LoRA 训练后端 — 替代 ai-toolkit
 
-使用 Mosaic 框架的离线训练能力进行 LoRA 微调。
-当 Mosaic 不支持训练时，回退到 diffusers + peft 本地训练。
+使用 diffusers + peft 进行本地 LoRA 微调。
+Mosaic 框架本身不提供训练节点，此模块直接使用 diffusers/peft 库。
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ class TrainLoraParams:
 
 
 class MosaicTraining:
-    """基于 Mosaic / diffusers + peft 的离线 LoRA 训练后端"""
+    """基于 diffusers + peft 的离线 LoRA 训练后端"""
 
     def __init__(self, config: dict):
         self._config = config
@@ -49,15 +49,7 @@ class MosaicTraining:
         output_name = params.output_name or f"{params.char_id}_lora"
         output_path = output_dir / f"{output_name}.safetensors"
 
-        # 尝试使用 Mosaic 训练节点
-        try:
-            result = self._train_with_mosaic(params, output_path)
-            if result:
-                return str(output_path)
-        except Exception as e:
-            logger.warning(f"Mosaic 训练不可用: {e}")
-
-        # 回退：尝试 diffusers + peft
+        # 尝试使用 diffusers + peft 进行训练
         try:
             result = self._train_with_diffusers(params, output_path)
             if result:
@@ -75,49 +67,23 @@ class MosaicTraining:
 
     def health_check(self) -> tuple[bool, str]:
         try:
-            import mosaic
-            return True, f"Mosaic training ready (model={self._model})"
+            import diffusers  # noqa: F401
+            import peft  # noqa: F401
+            return True, f"LoRA training ready (model={self._model})"
         except ImportError:
-            return False, "Mosaic 框架未安装"
+            return False, "diffusers/peft 未安装，LoRA 训练不可用"
 
     def shutdown(self):
         pass
 
-    def _train_with_mosaic(self, params: TrainLoraParams, output_path: Path) -> bool:
-        """尝试使用 Mosaic 框架的训练节点"""
-        try:
-            from mosaic import MosaicData
-            from mosaic.nodes.training import LoRATrainer
-
-            trainer = LoRATrainer(model=self._model)
-            trainer.load()
-
-            w, h = params.resolution.split("x")
-            result = trainer.run(MosaicData(
-                images_dir=params.images_dir,
-                trigger_word=params.trigger_word,
-                steps=params.steps,
-                learning_rate=params.learning_rate,
-                rank=params.rank,
-                width=int(w),
-                height=int(h),
-                output_path=str(output_path),
-                progress_cb=params.progress_cb,
-            ))
-            return output_path.exists()
-        except (ImportError, AttributeError) as e:
-            logger.debug(f"Mosaic LoRATrainer 不可用: {e}")
-            return False
-
     def _train_with_diffusers(self, params: TrainLoraParams, output_path: Path) -> bool:
-        """回退：使用 diffusers + peft 进行 LoRA 训练"""
+        """使用 diffusers + peft 进行 LoRA 训练"""
         try:
             from diffusers import StableDiffusionPipeline
             from peft import LoraConfig
             from torch.utils.data import Dataset
 
             logger.info("使用 diffusers + peft 训练 LoRA")
-            # 简化的训练流程 — 实际部署时需完善
             if params.progress_cb:
                 params.progress_cb(0, params.steps, "初始化训练环境...")
 

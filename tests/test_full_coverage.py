@@ -1179,9 +1179,9 @@ class TestConfigFiles:
         """system.yaml 可加载"""
         from infra.config import load_config, SYSTEM_CONFIG_PATH
         data = load_config(SYSTEM_CONFIG_PATH)
-        assert "comfyui" in data
         assert "models" in data
         assert "llm" in data
+        assert "timeouts" in data
 
     def test_models_registry(self):
         """models_registry.yaml 可加载"""

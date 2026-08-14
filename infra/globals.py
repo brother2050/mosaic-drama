@@ -8,7 +8,7 @@
 用法:
     from infra.globals import get_watchdog, get_health_cache, get_concurrency_groups
     wd = get_watchdog()
-    with wd.track("shot001:tts", backend="mimo"):
+    with wd.track("shot001:tts", backend="mosaic"):
         tts.generate(...)
 """
 from __future__ import annotations
@@ -38,7 +38,7 @@ def init_globals(
     busy_timeout: float = 300.0,
     check_interval: float = 5.0,
     health_ttl: float = 30.0,
-    comfyui_slots: int = 1,
+    image_slots: int = 1,
     tts_slots: int = 2,
 ) -> None:
     """初始化全局实例（进程启动时调用一次）"""
@@ -61,16 +61,16 @@ def init_globals(
         _health_cache = HealthCache(ttl=health_ttl)
 
         _concurrency_groups = ConcurrencyGroups({
-            "comfyui": comfyui_slots,   # ComfyUI GPU 密集，通常 1
-            "tts": tts_slots,           # TTS 可以稍多
-            "lipsync": 1,               # 口型同步也是 GPU 密集
-            "llm": 4,                   # LLM 通常可以并行
+            "image": image_slots,     # 图像生成 GPU 密集，通常 1
+            "tts": tts_slots,         # TTS 可以稍多
+            "lipsync": 1,             # 口型同步也是 GPU 密集
+            "llm": 4,                 # LLM 通常可以并行
         })
 
     logger.info(f"全局基础设施初始化完成: "
                  f"watchdog(busy={busy_timeout}s), "
                  f"health_cache(ttl={health_ttl}s), "
-                 f"concurrency_groups(comfyui={comfyui_slots}, tts={tts_slots})")
+                 f"concurrency_groups(image={image_slots}, tts={tts_slots})")
 
 
 def start_file_monitor(config_dir: str | Path) -> None:

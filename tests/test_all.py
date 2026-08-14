@@ -26,7 +26,7 @@ def test_config_load():
     name = cfg.get("project.name")
     assert name is not None and name != "", "project.name 不应为空"
     assert cfg.get("models.tts_backend") is not None, "models.tts_backend 不应为空"
-    assert cfg.get("comfyui.url") is not None, "comfyui.url 不应为空"
+    assert cfg.get("llm.backend") is not None, "llm.backend 不应为空"
     assert cfg.get("nonexistent.key", "default") == "default"
     print(f"✅ Config 加载正常 (project.name={name})")
 

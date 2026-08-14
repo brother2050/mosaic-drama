@@ -31,13 +31,13 @@ def mock_cfg(tmp_dir):
     """创建最小 Config mock"""
     cfg = MagicMock()
     cfg.get = MagicMock(side_effect=lambda key, default="": {
-        "comfyui.url": "http://127.0.0.1:8188",
-        "comfyui.api_key": "",
+        "llm.backend": "mosaic",
+        "llm.model": "default",
         "models.tts_backend": "mosaic",
-        "models.image_backend": "sd15",
-        "models.video_backend": "animatediff",
-        "models.lip_sync_backend": "musetalk",
-        "timeouts.comfyui": 300,
+        "models.image_backend": "mosaic",
+        "models.video_backend": "mosaic",
+        "models.lip_sync_backend": "mosaic",
+        "timeouts.image": 300,
         "timeouts.tts": 60,
     }.get(key, default))
     cfg.paths = MagicMock()
@@ -47,8 +47,8 @@ def mock_cfg(tmp_dir):
     cfg.paths.scenes_dir = tmp_dir / "config" / "scenes"
     cfg.paths.shot_dir = MagicMock(side_effect=lambda ep, sid: tmp_dir / f"e{ep:02d}" / sid)
     cfg.data = {
-        "comfyui": {"url": "http://127.0.0.1:8188"},
-        "models": {"tts_backend": "mosaic", "image_backend": "sd15"},
+        "llm": {"enabled": True, "backend": "mosaic", "model": "default"},
+        "models": {"tts_backend": "mosaic", "image_backend": "mosaic"},
     }
     # 创建必要目录
     (tmp_dir / "config").mkdir(exist_ok=True)
@@ -303,18 +303,23 @@ def test_validate_shot_bad_duration():
     assert any("duration" in e for e in errors)
 
 
-# ── T-05 补充: ComfyUI 不可达 ──
+# ── T-05 补充: Mosaic 不可用 ──
 
-def test_check_available_comfyui_down():
-    """ComfyUI 不可达时应返回 available=False"""
+def test_check_available_mosaic_down():
+    """Mosaic 未安装时应返回 available=False"""
     from infra.toolcheck import _check_tool_inner
-    import httpx
-    # mock 底层 HTTP 请求（httpx.Client.get 经由 http_pool），
-    # 而非被测函数本身 — 验证真实分发逻辑能正确判定不可达
-    with patch("infra.http_pool.get_fast_client") as mock_client:
-        mock_client.return_value.get.side_effect = httpx.ConnectError("Connection refused")
-        result = _check_tool_inner("comfyui", {"comfyui": {"url": "http://localhost:8188"}})
+    import sys
+    # 模拟 mosaic 未安装
+    original = sys.modules.get("mosaic")
+    sys.modules["mosaic"] = None  # type: ignore
+    try:
+        result = _check_tool_inner("ip_adapter", {})
         assert result["available"] is False
+    finally:
+        if original is not None:
+            sys.modules["mosaic"] = original
+        else:
+            sys.modules.pop("mosaic", None)
 
 
 def test_check_available_tool_missing():

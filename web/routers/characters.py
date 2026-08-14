@@ -46,7 +46,7 @@ def batch_delete_characters(req: BatchDeleteRequest) -> dict:
 @router.post("/characters/{char_id}/generate-portrait")
 def generate_character_portrait(char_id: str) -> dict:
     from pipeline.tasks import portrait_single_task
-    return _submit_entity_task("characters", char_id, "角色", portrait_single_task, require_comfyui=True)
+    return _submit_entity_task("characters", char_id, "角色", portrait_single_task, require_image=True)
 
 
 @router.post("/characters/{char_id}/generate-outfit")
