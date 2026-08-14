@@ -33,18 +33,9 @@ vertical = [
 ]
 dev = ["pytest>=7.0", "ruff>=0.1.0"]
 all = ["mosaic-drama[vertical,dev]"]
-# Mosaic 框架需通过 PYTHONPATH 安装:
-#   export PYTHONPATH=/path/to/mosaic:$PYTHONPATH
-# 或:
-#   pip install -e /path/to/mosaic
-mosaic = [
-    "torch>=2.0.0",
-    "transformers>=4.36.0",
-    "diffusers>=0.25.0",
-    "peft>=0.7.0",
-    "accelerate>=0.25.0",
-    "edge-tts>=6.1.0",
-]
+
+# Mosaic 框架通过 PYTHONPATH 使用，不作为 pip 包安装：
+# export PYTHONPATH=/path/to/mosaic:$PYTHONPATH
 
 [project.scripts]
 drama = "cli:cli"

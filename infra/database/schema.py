@@ -50,24 +50,12 @@ CREATE TABLE IF NOT EXISTS generation_status (
 )
 """
 
-_CREATE_MOSAIC_ASSETS = """
-CREATE TABLE IF NOT EXISTS mosaic_assets (
-    id SERIAL PRIMARY KEY,
-    project TEXT NOT NULL DEFAULT 'default',
-    server_url TEXT NOT NULL,
-    asset_type TEXT NOT NULL CHECK (asset_type IN ('image', 'lora')),
-    filename TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(project, server_url, asset_type, filename)
-)
-"""
-
 _CREATE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_shots_project_episode ON shots (project, episode)",
     "CREATE INDEX IF NOT EXISTS idx_generation_status_pending ON generation_status (project, episode, stage, status)",
 ]
 
-_STATEMENTS = [_CREATE_SHOTS, _CREATE_GENERATION_STATUS, _CREATE_MOSAIC_ASSETS] + _CREATE_INDEXES
+_STATEMENTS = [_CREATE_SHOTS, _CREATE_GENERATION_STATUS] + _CREATE_INDEXES
 
 
 def init_schema(conn):

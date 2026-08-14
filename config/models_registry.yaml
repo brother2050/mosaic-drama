@@ -92,7 +92,6 @@ image_backends:
   flux:
     module: "api.backends.image.mosaic_image"
     priority: 10
-    workflow: "01_first_frame_flux.json"
     prompt_style: "natural"
     consistency_default: "pulid_flux"
     consistency_pipeline: "flux_identity"
@@ -106,7 +105,6 @@ image_backends:
   sd15:
     module: "api.backends.image.mosaic_image"
     priority: 20
-    workflow: "01_first_frame_sd15.json"
     prompt_style: "tag"
     consistency_default: "ip_adapter"
     negative_prompt: "bad quality, worst quality, low quality, ugly, deformed, blurry, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, jpeg artifacts, text, watermark, logo, signature, subtitle, caption, text overlay, speech bubble, comic text"
@@ -119,7 +117,6 @@ image_backends:
   cosmos:
     module: "api.backends.image.mosaic_image"
     priority: 30
-    workflow: "cosmos_predict2_2B_t2i.json"
     prompt_style: "natural"
     consistency_default: "none"
     negative_prompt: "bad quality, worst quality, low quality, ugly, deformed, blurry, text, watermark, logo, signature, subtitle, caption, text overlay"
@@ -136,19 +133,16 @@ video_backends:
   cosmos-video:
     module: "api.backends.video.mosaic_video"
     priority: 10
-    workflow: "04_img2video_cosmos.json"
     description: "Mosaic 离线视频生成（SVD）"
 
   animatediff:
     module: "api.backends.video.mosaic_video"
     priority: 20
-    workflow: "02_img2video.json"
     description: "Mosaic 离线视频生成（SVD）"
 
   cogvideox:
     module: "api.backends.video.mosaic_video"
     priority: 30
-    workflow: "03_img2video_cogvideo.json"
     description: "Mosaic 离线视频生成（SVD）"
 
 # ══════════════════════════════════════════════════════════
@@ -165,21 +159,6 @@ llm_models:
   "Qwen/Qwen2.5-72B-Instruct":
     context_window: 32768
     max_output: 8192
-
-# ══════════════════════════════════════════════════════════
-#  ComfyUI 工作流模板定义（保留用于 prompt 构建）
-# ══════════════════════════════════════════════════════════
-
-workflow_templates:
-  flux:
-    image_workflow: "01_first_frame_flux.json"
-    video_workflow: "02_img2video.json"
-  sd15:
-    image_workflow: "01_first_frame_sd15.json"
-    video_workflow: "02_img2video.json"
-  cosmos:
-    image_workflow: "cosmos_predict2_2B_t2i.json"
-    video_workflow: "04_img2video_cosmos.json"
 
 # ══════════════════════════════════════════════════════════
 #  辅助服务（非后端，但需要健康检查）

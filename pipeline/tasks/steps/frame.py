@@ -1,9 +1,7 @@
-"""首帧生成步骤 — ComfyUI 工作流构建 + 执行 → frame.png"""
+"""首帧生成步骤 — 工作流构建 + 执行 → frame.png"""
 from __future__ import annotations
 
-import atexit
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -12,10 +10,6 @@ from infra.constants import ERR_NOT_PREPARED, STATUS_DONE, STEP_FIRST_FRAME
 from pipeline.tasks.helpers import _skip, _err
 
 logger = logging.getLogger(__name__)
-
-# 共享线程池：所有 shot 复用，避免每 shot 创建新线程池（max_workers=4 限制上传并发）
-_upload_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="upload")
-atexit.register(_upload_pool.shutdown, wait=False)
 
 
 @dataclass
@@ -33,61 +27,6 @@ class FirstFrameParams:
 
 
 # ── 内部工具 ──
-
-
-def _upload_reference_images(wf: dict, shot: dict, wb, comfyui, paths) -> dict:
-    """并行上传参考图到 Mosaic 服务器，更新工作流节点引用（复用共享线程池）"""
-    from engines.workflow import find_character_load_image_nodes as _find_char_nodes
-    from infra.storage.asset_tracker import mosaic_asset_name
-
-    # 仅在工作流含一致性节点时区分角色/场景节点；
-    # 无一致性节点时 find_character_load_image_nodes 会回退到全部 LoadImage，
-    # 此时置空集合，让所有节点走场景上传路径（避免误杀场景图失败）
-    _char_node_ids = _find_char_nodes(wf)
-    from infra.config.registry import ModelRegistry
-    _consistency_types = ModelRegistry().get_consistency_node_types()
-    _has_consistency_nodes = any(
-        wf.get(nid, {}).get("class_type") in _consistency_types
-        for nid in wf
-    )
-    _char_node_set = set(_char_node_ids) if _has_consistency_nodes else set()
-    upload_map = wb.build_upload_map(shot, wf)
-    if not upload_map:
-        return wf
-
-    def _upload_one(node_id: str, file_path: str) -> tuple[str, str, str | None]:
-        if not Path(file_path).exists():
-            return node_id, "", f"文件不存在: {file_path}"
-        try:
-            if node_id in _char_node_set and "/assets/characters/" in file_path:
-                parts = Path(file_path).parts
-                char_idx = parts.index("characters") + 1
-                cid = parts[char_idx] if char_idx < len(parts) else "unknown"
-                remote_name = mosaic_asset_name(str(paths.root), cid, Path(file_path).name)
-            else:
-                remote_name = Path(file_path).name
-            comfyui.upload_image(file_path, filename=remote_name)
-            return node_id, remote_name, None
-        except Exception as e:
-            return node_id, "", f"上传失败: {e}"
-
-    futures = {_upload_pool.submit(_upload_one, nid, fp): nid for nid, fp in upload_map.items()}
-    failed_char_refs = []
-    for future in as_completed(futures):
-        node_id, remote_name, err = future.result()
-        if err:
-            if node_id in _char_node_set:
-                failed_char_refs.append(f"[{node_id}] {err}")
-                logger.error(f"角色参考图上传失败 [{node_id}]: {err}")
-            else:
-                logger.warning(f"场景图上传失败 [{node_id}]: {err}")
-        elif node_id in wf and remote_name:
-            cls = wf[node_id].get("class_type", "")
-            if cls in ("LoadImage", "LoadImageFromPath", "ImageLoad"):
-                wf[node_id]["inputs"]["image"] = remote_name
-    if failed_char_refs:
-        raise RuntimeError(f"角色参考图上传失败（{len(failed_char_refs)} 个）: {'; '.join(failed_char_refs)}")
-    return wf
 
 
 def _resolve_shot_context(shot: dict, cfg, characters: dict | None, scenes: dict | None):
@@ -199,14 +138,20 @@ def _resolve_scene_ref(shot, scene, cfg):
 # ── 核心逻辑 ──
 
 
+def _upload_reference_images(wf: dict, shot: dict, comfyui, paths) -> dict:
+    """上传参考图到服务器并更新工作流节点引用
+
+    Mosaic 后端使用最小化工作流（不含 LoadImage 节点），无需上传参考图。
+    """
+    return wf
+
+
 def first_frame_core(p: FirstFrameParams) -> dict:
     """首帧生成核心逻辑 — ComfyUI 工作流构建 + 执行"""
     p.out_dir.mkdir(parents=True, exist_ok=True)
     frame_path = p.out_dir / "frame.png"
     if not p.force and frame_path.exists():
         return _skip(p.shot_id, STEP_FIRST_FRAME, "首帧已存在")
-
-    from engines.workflow.builder import WorkflowBuilder, WorkflowBuilderConfig
 
     shot, char_descs, scene_desc, multi_char_prompt, err = _resolve_shot_context(
         p.shot, p.cfg, p.characters, p.scenes)
@@ -218,23 +163,19 @@ def first_frame_core(p: FirstFrameParams) -> dict:
         from infra.config import load_char_name_to_id
         p.char_name_to_id = load_char_name_to_id(p.cfg.paths)
 
-    paths = p.cfg.paths
-    wb = WorkflowBuilder(WorkflowBuilderConfig(
-        config=p.cfg.data, models=p.cfg.get("models", {}), project_dir=str(paths.root),
-        comfyui=p.cont.get("image"), container=p.cont, force=p.force,
-        char_name_to_id=p.char_name_to_id))
-    wb.load_workflows()
-    prompt, wf = wb.build_first_frame(
-        shot, character_desc=", ".join(char_descs),
-        scene_desc=scene_desc, multi_char_prompt=multi_char_prompt)
-    if not wf:
-        return _err(p.shot_id, STEP_FIRST_FRAME, "首帧工作流为空（缺少模板）")
-
+    from engines.generation import build_first_frame
     from pipeline.tasks.helpers import comfyui_generate
 
-    comfyui = p.cont.get("image")
-    wf = _upload_reference_images(wf, shot, wb, comfyui, paths)
+    paths = p.cfg.paths
+    prompt, wf = build_first_frame(
+        shot, character_desc=", ".join(char_descs), scene_desc=scene_desc,
+        multi_char_prompt=multi_char_prompt,
+        config=p.cfg.data, models=p.cfg.get("models", {}),
+        project_dir=str(paths.root), char_name_to_id=p.char_name_to_id)
+    if not wf:
+        return _err(p.shot_id, STEP_FIRST_FRAME, "首帧工作流构建失败")
 
+    comfyui = p.cont.get("image")
     result = comfyui_generate(p.shot_id, STEP_FIRST_FRAME, comfyui, wf, p.out_dir, "frame.png", min_size=500)
     if result.get("status") != STATUS_DONE:
         return result

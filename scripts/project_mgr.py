@@ -280,15 +280,9 @@ def _cleanup_project_db(project_dir: Path) -> None:
         return
 
     proj_name = project_dir.name
-    proj_str = str(project_dir)
 
     try:
         from infra.database._db import project_scope
-        from infra.database.mosaic_assets import delete_by_project as _del_assets
-
-        # mosaic_assets（按 project 名称匹配）
-        _del_assets(pool, proj_name)
-        logger.info(f"  清理 mosaic_assets: {proj_str}")
 
         with project_scope(proj_name):
             # 1. 直接按 project 删除所有 DB 记录（不依赖 YAML 文件）

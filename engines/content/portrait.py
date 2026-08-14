@@ -25,7 +25,7 @@ def _safe_rename(src: str, dst: str) -> None:
             pass
 
 
-# 重入保护：正在生成中的角色，防止 build_first_frame → _get_character_refs → ensure_portrait 死循环
+# 重入保护：正在生成中的角色，防止首帧生成 → ensure_portrait 递归调用死循环
 _generating: dict[str, float] = {}  # char_id → start_time（TTL 防残留）
 _generating_lock = threading.Lock()
 _GENERATING_TTL = 300  # 5 分钟超时（单张定妆照生成不应超过此时间，超时则视为卡死）
@@ -35,7 +35,8 @@ _GENERATING_TTL = 300  # 5 分钟超时（单张定妆照生成不应超过此�
 class ViewGenParams:
     """视图生成参数 — 消除 _generate_view 的 11 个参数"""
     comfyui: object  # Mosaic 图像后端实例（通过 image backend 接口调用）
-    wb: object
+    config: dict
+    models: dict
     char_id: str
     portrait_dir: Path
     filename: str
@@ -76,117 +77,58 @@ def _outfit_seed(char_id: str, generation: int, outfit_key: str) -> int:
     return int(h[:16], 16)
 
 
-def _inject_ref_image(wf: dict, ref_image: str, char_id: str, project_dir: str, comfyui, *, raise_on_error: bool = False) -> None:
-    """注入参考图到工作流的 IP-Adapter/PuLID LoadImage 节点
+def _find_load_image_nodes(wf: dict) -> list[str]:
+    """查找工作流中的 LoadImage 节点"""
+    result = []
+    for nid, node in wf.items():
+        if isinstance(node, dict) and node.get("class_type") in ("LoadImage", "LoadImageFromPath", "ImageLoad"):
+            result.append(nid)
+    return result
 
-    当 ref_image 为空时（如正面视图生成 cover.png 之前），移除工作流中已注入的
-    一致性节点（PuLID / IP-Adapter），避免 Mosaic 后端因引用不存在的图片而报错。
+
+def _append_negative_prompt(wf: dict, extra: str) -> None:
+    """向工作流的负向提示词追加内容
+
+    找到 KSampler 的 negative 输入引用的 CLIPTextEncode 节点，
+    在其 text 末尾追加额外内容。
     """
-    from engines.workflow.utils import find_character_load_image_nodes, find_load_image_nodes
+    for nid, node in wf.items():
+        if not isinstance(node, dict):
+            continue
+        if node.get("class_type") in ("KSampler", "KSamplerAdvanced"):
+            neg_ref = node.get("inputs", {}).get("negative", [])
+            if isinstance(neg_ref, list) and neg_ref:
+                neg_node = wf.get(neg_ref[0], {})
+                if isinstance(neg_node, dict) and neg_node.get("class_type") == "CLIPTextEncode":
+                    current = neg_node.get("inputs", {}).get("text", "")
+                    neg_node["inputs"]["text"] = f"{current}, {extra}" if current else extra
+                    return
 
+
+def _inject_ref_image(wf: dict, ref_image: str, char_id: str, project_dir: str, comfyui, *, raise_on_error: bool = False) -> None:
+    """注入参考图到工作流的 LoadImage 节点
+
+    Mosaic 后端在本地处理图片，无需上传到远程服务器。
+    当 ref_image 为空时，直接返回（最小化工作流不含一致性节点）。
+    """
     if not ref_image or not os.path.exists(ref_image):
-        # 无参考图时，移除已注入的一致性节点（PuLID / IP-Adapter），避免 Mosaic 校验失败
-        _remove_consistency_nodes(wf)
         return
-    char_nodes = find_character_load_image_nodes(wf)
-    if not char_nodes:
-        # 回退：定妆照生成时无 IP-Adapter/PuLID 节点，使用第一个普通 LoadImage
-        char_nodes = find_load_image_nodes(wf)
-    if not char_nodes:
+    load_nodes = _find_load_image_nodes(wf)
+    if not load_nodes:
         return
-    from infra.storage.asset_tracker import mosaic_asset_name, AssetTracker
-    remote_name = mosaic_asset_name(project_dir, char_id, os.path.basename(ref_image))
-    for nid in char_nodes:
-        wf[nid]["inputs"]["image"] = remote_name
-    try:
-        AssetTracker(project_dir).upload_if_needed(comfyui, ref_image, remote_name, comfyui.url)
-    except Exception as e:
-        if raise_on_error:
-            raise RuntimeError(f"参考图上传到 Mosaic 失败: {e}") from e
-        logger.warning(f"参考图上传失败: {e}")
+    # Mosaic 后端本地处理，直接使用本地文件名
+    local_name = os.path.basename(ref_image)
+    for nid in load_nodes:
+        wf[nid]["inputs"]["image"] = local_name
 
 
 def _remove_consistency_nodes(wf: dict) -> None:
     """从工作流中移除 PuLID / IP-Adapter 一致性节点子图
 
-    正面视图生成 cover.png 之前无参考图可用，需要清理已注入的一致性节点，
-    否则 Mosaic 后端会因引用不存在的图片文件而报 'Invalid image file' 错误。
-
-    保留 LoRA 节点（角色 LoRA / 全局 LoRA / 风格 LoRA）——它们不依赖一致性节点。
-    移除一致性节点后，KSampler.model 重连到 LoRA（如有），保持 LoRA 在链路中。
+    Mosaic 后端使用最小化工作流（仅 KSampler/EmptyLatentImage/CLIPTextEncode），
+    不含 PuLID / IP-Adapter 节点，因此本函数为空操作。
     """
-    from engines.workflow.utils import find_character_load_image_nodes
-    char_nodes = find_character_load_image_nodes(wf)
-    if not char_nodes:
-        return
-
-    # 1. 收集需要移除的节点
-    to_remove = set()
-    for nid in list(wf.keys()):
-        cls = wf[nid].get("class_type", "")
-        # PuLID 节点
-        if cls in ("PulidFluxModelLoader", "PulidFluxInsightFaceLoader",
-                    "PulidFluxEvaClipLoader", "ApplyPulidFlux"):
-            to_remove.add(nid)
-        # IP-Adapter 节点
-        elif cls in ("IPAdapterModelLoader", "CLIPVisionLoader", "IPAdapterAdvanced"):
-            to_remove.add(nid)
-        # 一致性 LoadImage 节点（pulid_ref_* / ipadapter_ref_*）
-        elif nid in char_nodes:
-            to_remove.add(nid)
-
-    if not to_remove:
-        return
-
-    # 2. 先回退 KSampler model 输入（避免递归收集时把 KSampler/VAEDecode 误删）
-    #    沿 model 链回退到第一个不在 to_remove 中的祖先节点。
-    #    典型链路: UNETLoader → LoRA → ApplyPulidFlux → KSampler
-    #    PuLID 的 model 链: PulidFluxModelLoader → UNETLoader（不经过 LoRA），
-    #    因此 while 循环会跳过 LoRA 直连 UNETLoader。需要额外修正：
-    #    如果重连目标被 LoRA 消费，则连接到 LoRA 而非直连源。
-    for nid, node in wf.items():
-        if node.get("class_type") == "KSampler":
-            model_input = node["inputs"].get("model")
-            if isinstance(model_input, list) and len(model_input) == 2:
-                source_nid = model_input[0]
-                if source_nid in to_remove:
-                    cur = source_nid
-                    while cur in to_remove:
-                        cur_node = wf.get(cur, {})
-                        parent = cur_node.get("inputs", {}).get("model")
-                        if isinstance(parent, list) and len(parent) == 2:
-                            cur = parent[0]
-                        else:
-                            break
-                    # 修正: 如果 cur（如 UNETLoader）被 LoRA 消费，连接到 LoRA
-                    for _nid, _node in wf.items():
-                        if _nid in to_remove:
-                            continue
-                        if _node.get("class_type") == "LoraLoader":
-                            _model_in = _node.get("inputs", {}).get("model")
-                            if isinstance(_model_in, list) and _model_in[0] == cur:
-                                cur = _nid
-                                break
-                    node["inputs"]["model"] = [cur, 0]
-                    logger.debug(f"KSampler model 输入回退到 {cur}")
-
-    # 3. 递归收集：输出引用被移除节点的其他节点（如 LoRA → pulid_model 链路断裂）
-    #    KSampler/VAEDecode 等核心节点已在步骤 2 重连，不会被误删
-    changed = True
-    while changed:
-        changed = False
-        for nid, node in list(wf.items()):
-            if nid in to_remove:
-                continue
-            for inp_val in node.get("inputs", {}).values():
-                if isinstance(inp_val, list) and len(inp_val) == 2 and inp_val[0] in to_remove:
-                    to_remove.add(nid)
-                    changed = True
-                    break
-
-    for nid in to_remove:
-        del wf[nid]
-    logger.debug(f"已移除 {len(to_remove)} 个一致性节点（无参考图可用）")
+    return
 
 
 def _generate_view(params: ViewGenParams) -> str:
@@ -203,12 +145,10 @@ def _generate_view(params: ViewGenParams) -> str:
     fake_shot = {"characters": p.char_id, "emotion": "neutral",
                  "shot_type": p.shot_type, "camera": "固定", "scene_name": "",
                  "view_key": p.view_key}
-    # 正面视图（view_key="front"）无参考图，跳过一致性注入（PuLID/IP-Adapter），
-    # 避免注入后 _remove_consistency_nodes 清理不彻底的问题。
-    # LoRA 仍由 build_first_frame 内部按 skip_consistency 分支注入。
-    skip_consistency = (p.view_key == "front")
-    _, wf = p.wb.build_first_frame(fake_shot, character_desc=view_desc, seed=p.seed,
-                                    skip_consistency=skip_consistency)
+    from engines.generation import build_first_frame
+    _, wf = build_first_frame(fake_shot, character_desc=view_desc,
+                               config=p.config, models=p.models,
+                               project_dir=p.project_dir, seed=p.seed)
     if not wf:
         return ""
 
@@ -220,8 +160,7 @@ def _generate_view(params: ViewGenParams) -> str:
     from engines.prompt.view import get_view_negative
     view_neg = get_view_negative(p.view_key)
     if view_neg:
-        from engines.workflow.utils import append_negative_prompt
-        append_negative_prompt(wf, view_neg)
+        _append_negative_prompt(wf, view_neg)
 
     files = p.comfyui.generate(wf, str(p.portrait_dir))
     if not files:
@@ -237,7 +176,7 @@ def _generate_view(params: ViewGenParams) -> str:
 
 
 
-def _generate_five_views(comfyui, wb, char_id: str, portrait_dir: Path,
+def _generate_five_views(comfyui, config: dict, models: dict, char_id: str, portrait_dir: Path,
                          char: dict, project_dir: str, generation: int,
                          force: bool = False) -> list[str]:
     """生成五视图，返回已生成的 URL 列表"""
@@ -259,7 +198,7 @@ def _generate_five_views(comfyui, wb, char_id: str, portrait_dir: Path,
 
         try:
             result = _generate_view(ViewGenParams(
-                comfyui=comfyui, wb=wb, char_id=char_id, portrait_dir=portrait_dir,
+                comfyui=comfyui, config=config, models=models, char_id=char_id, portrait_dir=portrait_dir,
                 filename=filename, shot_type=shot_type, seed=view_seed, ref_image=ref,
                 char=char, project_dir=project_dir, view_key=vk))
         except Exception as e:
@@ -373,10 +312,7 @@ def ensure_portrait(char_id: str, config: dict, container=None, force: bool = Fa
 
     try:
         comfyui = container.get("image")
-        from engines.workflow.builder import WorkflowBuilder, WorkflowBuilderConfig
         models = config.get("models", {})
-        wb = WorkflowBuilder(WorkflowBuilderConfig(config=config, models=models, project_dir=str(paths.root), comfyui=comfyui, force=force, no_auto_gen=True))
-        wb.load_workflows()
 
         # 读取代数计数器（force 时递增，得到不同的生成结果）
         generation = char.get("portrait_generation", 0)
@@ -390,7 +326,7 @@ def ensure_portrait(char_id: str, config: dict, container=None, force: bool = Fa
 
         # 确定性 seed：同一角色+同一代 → 所有视图/服装共享基础 seed
 
-        generated_urls = _generate_five_views(comfyui, wb, char_id, portrait_dir, char, project_dir, generation, force=force)
+        generated_urls = _generate_five_views(comfyui, config, models, char_id, portrait_dir, char, project_dir, generation, force=force)
         _update_view_refs(char, char_id, generated_urls)
         if generated_urls:
             data["character"] = char
@@ -414,7 +350,7 @@ def ensure_portrait(char_id: str, config: dict, container=None, force: bool = Fa
                 _generating.pop(char_id, None)
 
 
-def _generate_single_outfit(comfyui, wb, char_id: str, outfit_key: str,
+def _generate_single_outfit(comfyui, config: dict, models: dict, char_id: str, outfit_key: str,
                             outfit_desc_en: str, appearance_en: str,
                             portrait_dir: Path, cover_path: Path,
                             project_dir: str, outfit_seed: int,
@@ -433,20 +369,14 @@ def _generate_single_outfit(comfyui, wb, char_id: str, outfit_key: str,
 
     fake_shot = {"characters": char_id, "emotion": "neutral", "shot_type": "全身",
                  "camera": "固定", "scene_name": "", "view_key": "full_body"}
-    _, wf = wb.build_first_frame(fake_shot, character_desc=full_desc, seed=outfit_seed)
+    from engines.generation import build_first_frame
+    _, wf = build_first_frame(fake_shot, character_desc=full_desc,
+                               config=config, models=models,
+                               project_dir=project_dir, seed=outfit_seed)
     if not wf:
         return None
 
     _inject_ref_image(wf, str(cover_path) if cover_path.exists() else None, char_id, project_dir, comfyui, raise_on_error=True)
-
-    # 全身服装图面部占比小，提高 PuLID 权重确保面部一致性
-    from engines.workflow.utils import find_nodes_by_class
-    pulid_nodes = find_nodes_by_class(wf, "ApplyPulidFlux")
-    for nid in pulid_nodes:
-        old_weight = wf[nid]["inputs"].get("weight", 0.75)
-        new_weight = min(old_weight * 1.2, 0.95)
-        wf[nid]["inputs"]["weight"] = new_weight
-        logger.debug(f"  Outfit PuLID weight: {old_weight:.2f} → {new_weight:.2f}")
 
     try:
         files = comfyui.generate(wf, str(outfit_dir))
@@ -484,10 +414,7 @@ def _ensure_outfit_images(char_id: str, config: dict, container,
         return
 
     comfyui = container.get("image")
-    from engines.workflow.builder import WorkflowBuilder, WorkflowBuilderConfig
     models = config.get("models", {})
-    wb = WorkflowBuilder(WorkflowBuilderConfig(config=config, models=models, project_dir=str(paths.root), comfyui=comfyui, force=force, no_auto_gen=True))
-    wb.load_workflows()
 
     cover_path = portrait_dir / "cover.png"
     generation = char.get("portrait_generation", 0)
@@ -505,7 +432,7 @@ def _ensure_outfit_images(char_id: str, config: dict, container,
             continue
 
         outfit_seed = _outfit_seed(char_id, generation, outfit_key)
-        url = _generate_single_outfit(comfyui, wb, char_id, outfit_key,
+        url = _generate_single_outfit(comfyui, config, models, char_id, outfit_key,
                                       outfit_desc_en, appearance_en, portrait_dir,
                                       cover_path, project_dir, outfit_seed, force=force,
                                       gender=char.get("gender", ""))

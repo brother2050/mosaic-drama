@@ -24,7 +24,7 @@ ProgressCB = Callable[[int, int, str], None] | None
 
 
 
-def _process_single_scene(f: Path, wb, comfyui, paths, cfg, force: bool) -> tuple[bool, str]:
+def _process_single_scene(f: Path, comfyui, paths, cfg, force: bool) -> tuple[bool, str]:
     """处理单个场景，返回 (success, scene_name)"""
     try:
         data = load_yaml_full(f)
@@ -59,7 +59,10 @@ def _process_single_scene(f: Path, wb, comfyui, paths, cfg, force: bool) -> tupl
 
     # 生成
     fake_shot = {"characters": "", "emotion": "neutral", "shot_type": "全景", "camera": "固定"}
-    _, wf = wb.build_first_frame(fake_shot, scene_desc=desc_en)
+    from engines.generation import build_first_frame
+    _, wf = build_first_frame(fake_shot, scene_desc=desc_en,
+                              config=cfg.data, models=cfg.get("models", {}),
+                              project_dir=str(paths.root))
     if not wf:
         logger.warning(f"  ⚠ 场景 {sname}: 工作流为空")
         return False, sname
@@ -132,7 +135,6 @@ def run_scene_images(
     progress_cb: ProgressCB = None,
 ) -> dict:
     """生成场景参考图"""
-    from engines.workflow.builder import WorkflowBuilder, WorkflowBuilderConfig
     from infra.config import Config
     from api.registry import Container
     cfg = Config(config_path)
@@ -158,13 +160,10 @@ def run_scene_images(
     if not scene_files:
         return {"status": STATUS_DONE, "generated": 0, "total": 0, "skipped": 0}
 
-    wb = WorkflowBuilder(WorkflowBuilderConfig(config=cfg.data, models=cfg.get("models", {}), project_dir=str(paths.root), comfyui=comfyui))
-    wb.load_workflows()
-
     generated = skipped = 0
     for i, f in enumerate(scene_files):
         cb(i + 1, len(scene_files), f.stem)
-        ok, _ = _process_single_scene(f, wb, comfyui, paths, cfg, force)
+        ok, _ = _process_single_scene(f, comfyui, paths, cfg, force)
         if ok:
             generated += 1
         else:

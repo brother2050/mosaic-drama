@@ -63,14 +63,15 @@ pip install -e ".[all]"
 
 > 项目已从在线 API（ComfyUI/OpenAI/MuseTalk 等）迁移到 **Mosaic 框架的离线方法**。Mosaic 统一管理图像生成、视频生成、LLM、TTS、口型同步等所有后端，无需单独部署 ComfyUI 或申请任何在线 API Key。
 >
-> Mosaic 后端仍解析 ComfyUI 格式的 JSON 工作流模板（位于 `workflows/` 目录），因此工作流模板的编写/调试方式与 ComfyUI 一致，但运行时由 Mosaic 离线执行。
+> 生成参数由 `engines.generation` 直接构建，不再使用 ComfyUI 工作流 JSON 模板。
 
 #### 3.1 安装 Mosaic
 
+Mosaic 框架不作为 pip 包安装，通过 PYTHONPATH 使用：
+
 ```bash
-# 基础安装已包含 Mosaic 依赖（见上一节 pip install -e .）
-# 如需单独安装/升级最新版 Mosaic：
-pip install mosaic-framework
+# 将 Mosaic 源码目录加入 PYTHONPATH（替换为实际路径）
+export PYTHONPATH=/path/to/mosaic:$PYTHONPATH
 ```
 
 #### 3.2 模型管理
@@ -103,22 +104,6 @@ Mosaic 框架在首次运行时自动下载并缓存所需模型（Flux / Cosmos
 models:
   image_backend: "flux"        # flux / cosmos / sd15 / hidream
   video_backend: "cosmos-video" # cosmos-video / animatediff / cogvideox
-```
-
-> 工作流模板仍位于 `workflows/` 目录（ComfyUI 格式 JSON），由 Mosaic 后端解析执行。新增/修改工作流时按 ComfyUI 节点格式编写即可。
-
-#### 📁 工作流模板目录参考
-
-```
-workflows/                     # 工作流模板（ComfyUI 格式 JSON，由 Mosaic 解析执行）
-├── 01_first_frame_sd15.json   #   SD1.5 首帧
-├── 01_first_frame_flux.json   #   Flux 首帧
-├── 01_first_frame_flux_fp8.json  # Flux FP8 首帧
-├── cosmos_predict2_2B_t2i.json   # Cosmos 首帧
-├── 02_img2video.json          #   AnimateDiff 视频
-├── 03_img2video_cogvideo.json #   CogVideoX 视频
-├── 04_img2video_cosmos.json   #   Cosmos 视频
-└── 05_img2img_hidream.json    #   HiDream img2img
 ```
 
 ### 4. 启动 Redis + PostgreSQL（必选）
@@ -517,17 +502,14 @@ api/__init__.py (懒加载)
 # 新增后端只需在注册表中声明，不改代码
 image_backends:
   sd15:
-    workflow: "01_first_frame_sd15.json"
     prompt_style: "tag"              # prompt 风格
     consistency_default: "ip_adapter" # 默认一致性方案
   flux:
-    workflow: "01_first_frame_flux.json"
     prompt_style: "natural"
     consistency_default: "pulid_flux"
 
 video_backends:
   animatediff:
-    workflow: "02_img2video.json"
     frame_params:                    # 帧数注入规则
       node_class: "ADE_StandardStaticContextOptions"
       input_name: "context_length"
@@ -669,6 +651,7 @@ ai-drama-pipeline/
 ├── engines/                      # 引擎层（核心业务逻辑）
 │   ├── dialogue.py               #   对话解析
 │   ├── quality_gate.py           #   质量门禁系统（管线各阶段自动检查）
+│   ├── generation.py             #   生成参数直接构建（首帧/视频，替代 ComfyUI 工作流 JSON）
 │   ├── content/                  #   内容生成子包
 │   │   ├── storyboard.py         #     分镜表加载/验证/保存（DB 为唯一数据源）
 │   │   ├── llm.py                #     LLM 内容生成编排
@@ -812,16 +795,6 @@ ai-drama-pipeline/
 │   ├── prompt_templates.yaml     #   Prompt 模板（翻译/分镜/角色/场景/圣经生成）
 │   └── default_storyboard.py     #   默认分镜种子数据
 │
-├── workflows/                    # 工作流模板（ComfyUI 格式 JSON，由 Mosaic 解析执行，8 个）
-│   ├── 01_first_frame_sd15.json  #   SD1.5 首帧
-│   ├── 01_first_frame_flux.json  #   Flux 首帧
-│   ├── 01_first_frame_flux_fp8.json  # Flux FP8 首帧
-│   ├── cosmos_predict2_2B_t2i.json   # Cosmos 首帧
-│   ├── 02_img2video.json         #   AnimateDiff 视频
-│   ├── 03_img2video_cogvideo.json    # CogVideoX 视频
-│   ├── 04_img2video_cosmos.json  #   Cosmos 视频
-│   └── 05_img2img_hidream.json   #   HiDream img2img
-│
 ├── shared_assets/                # 全局共享资产（.gitignore 屏蔽）
 │   └── voices/                   #   声线库（drama voices 同步）
 │
@@ -856,7 +829,7 @@ ai-drama-pipeline/
 | `PostgreSQL 认证失败` | 用户名/密码不匹配 | 检查 `.env` 中的 `AI_DRAMA_DB_DSN`，确认用户和密码 |
 | `数据库不存在` | 未创建 ai_drama 数据库 | `sudo -u postgres psql -c "CREATE DATABASE ai_drama OWNER drama;"` |
 | `Celery Worker 未启动` | Worker 进程未运行 | 在另一个终端运行 `drama worker` |
-| `Mosaic 不可达` | Mosaic 框架未正确导入 | 确认 Mosaic 已安装：`pip show mosaic-framework`。Mosaic 离线运行，无需启动独立服务 |
+| `Mosaic 不可达` | Mosaic 框架未正确导入 | 确认 Mosaic 已通过 PYTHONPATH 导入：`echo $PYTHONPATH`。Mosaic 离线运行，无需启动独立服务 |
 | `TTS 不可用` | Mosaic 离线 TTS 服务异常 | 检查 Mosaic TTS 服务状态（离线模式，无需 API Key） |
 | `LLM 未启用` | LLM 配置未开启 | 在项目配置中设置 `llm.enabled: true`，或在 Web 设置页开启 |
 | `角色缺定妆照` | 未生成角色形象图 | Web 工作台「👤 角色」→「🎨 AI 生成定妆照」 |

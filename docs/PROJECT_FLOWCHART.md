@@ -187,7 +187,7 @@
 │ │      - 多人提示 (MultiCharacterHandler)                  │   │
 │ │      - 服装自动匹配 (outfit为空时回退default)            │   │
 │ │   2. WorkflowBuilder.build_first_frame:                  │   │
-│ │      - 加载工作流模板 (workflows/*.json)                 │   │
+│ │      - 构建生成参数 (engines.generation)                 │   │
 │ │      - GPU参数注入 (分辨率/步数/采样器)                  │   │
 │ │      - Prompt注入 (positive/negative)                    │   │
 │ │      - 一致性方案注入 (IP-Adapter/PuLID/LoRA)           │   │
@@ -208,7 +208,7 @@
 │ │ 处理:                                                   │   │
 │ │   1. 上传首帧到Mosaic                                   │   │
 │ │   2. WorkflowBuilder.build_video:                        │   │
-│ │      - 加载视频工作流模板                                │   │
+│ │      - 构建视频生成参数                                │   │
 │ │      - 注入视频prompt (appearance + scene + outfit)      │   │
 │ │      - 注入帧数 (= duration × fps)                      │   │
 │ │   3. mosaic_generate → video.mp4                       │   │
@@ -388,12 +388,6 @@ ai-drama-pipeline/
 │               └── episode_01_final.mp4 # 成片
 ├── shared_assets/
 │   └── voices/                  # 声线库
-├── workflows/                   # 工作流模板（ComfyUI 格式 JSON，由 Mosaic 解析执行）
-│   ├── flux_first_frame.json
-│   ├── cosmos_first_frame.json
-│   ├── sd15_first_frame.json
-│   ├── animatediff_video.json
-│   └── cosmos_video.json
 ├── api/backends/                # 后端实现
 │   ├── tts/                     # TTS 后端 (mosaic 离线)
 │   ├── image/                   # 图像后端 (Mosaic)

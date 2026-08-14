@@ -124,30 +124,50 @@ def _outfit_single_inner(self, config_path: str, char_id: str, outfit_key: str) 
     if err:
         return {"status": STATUS_ERROR, "reason": err}
 
-    self.update_state(state="PROGRESS", meta={"step": "outfit", "progress": 50, "message": "ComfyUI 生成中..."})
+    self.update_state(state="PROGRESS", meta={"step": "outfit", "progress": 50, "message": "Mosaic 生成中..."})
     try:
-        from engines.content.portrait import _generate_single_outfit, _outfit_seed
+        from engines.content.portrait import _outfit_seed
+        from engines.generation import build_portrait_workflow
+        from engines.prompt.builder import _ensure_gender_tag
+        from infra.constants import IMAGE_GLOB_PATTERNS
+        import os
+        import shutil
         comfyui = cont.get("image")
-        from engines.workflow.builder import WorkflowBuilder, WorkflowBuilderConfig
-        wb = WorkflowBuilder(WorkflowBuilderConfig(config=cfg.data, models=cfg.get("models", {}),
-                                                    project_dir=str(paths.root), comfyui=comfyui))
-        wb.load_workflows()
 
+        outfit_dir = paths.character_asset_dir(char_id) / outfit_key
+        # 已有图则跳过
+        if outfit_dir.exists():
+            existing = [f for ext in IMAGE_GLOB_PATTERNS for f in outfit_dir.glob(ext)]
+            if existing:
+                return {"status": STATUS_ERROR, "reason": "Mosaic 未返回任何图片"}
+
+        outfit_dir.mkdir(parents=True, exist_ok=True)
         generation = char.get("portrait_generation", 0)
         seed = _outfit_seed(char_id, generation, outfit_key)
-        cover_path = paths.character_asset_dir(char_id) / "cover.png"
 
-        url = _generate_single_outfit(
-            comfyui, wb, char_id, outfit_key, outfit_desc_en,
-            char.get("appearance_prompt_en", ""),
-            paths.character_asset_dir(char_id), cover_path,
-            str(paths.root), seed, gender=char.get("gender", ""))
+        full_desc = _ensure_gender_tag(
+            f"{char.get('appearance_prompt_en', '')}, wearing {outfit_desc_en}",
+            char.get("gender", ""))
+        negative = ("bad quality, worst quality, ugly, deformed, blurry, "
+                    "text, watermark, logo, signature, subtitle, caption, text overlay")
 
-        if url:
-            return {"status": STATUS_DONE, "url": url, "char_id": char_id, "outfit": outfit_key}
-        return {"status": STATUS_ERROR, "reason": "ComfyUI 未返回任何图片"}
+        wf = build_portrait_workflow(full_desc, negative, seed=seed)
+        if not wf:
+            return {"status": STATUS_ERROR, "reason": "定妆照工作流构建失败"}
+
+        files = comfyui.generate(wf, str(outfit_dir))
+        if not files:
+            return {"status": STATUS_ERROR, "reason": "Mosaic 未返回任何图片"}
+
+        cover_out = outfit_dir / "cover.png"
+        try:
+            os.replace(files[0], str(cover_out))
+        except OSError:
+            shutil.copy2(files[0], str(cover_out))
+        url = f"/api/assets/characters/{char_id}/{outfit_key}/cover.png"
+        return {"status": STATUS_DONE, "url": url, "char_id": char_id, "outfit": outfit_key}
     except Exception as e:
-        return {"status": STATUS_ERROR, "reason": f"ComfyUI 生成失败: {e}"}
+        return {"status": STATUS_ERROR, "reason": f"Mosaic 生成失败: {e}"}
 
 
 @app.task(bind=True, name="pipeline_outfits_batch", soft_time_limit=600)

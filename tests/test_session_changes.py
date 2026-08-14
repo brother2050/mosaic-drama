@@ -248,49 +248,6 @@ class TestGenerateEntities:
 
 
 # ══════════════════════════════════════════════════════════
-#  4. resolve_node_aliases 迭代安全（4f4014d）
-# ══════════════════════════════════════════════════════════
-
-class TestResolveNodeAliases:
-    """验证 resolve_node_aliases 不在迭代中修改 dict"""
-
-    def test_basic_alias(self):
-        """基本别名替换"""
-        from engines.workflow import resolve_node_aliases
-        wf = {"_node_aliases": {"Foo": ["Bar"]}, "1": {"class_type": "Foo", "inputs": {}}}
-        result = resolve_node_aliases(wf, {"Bar"})
-        assert result["1"]["class_type"] == "Bar"
-
-    def test_multiple_nodes(self):
-        """多节点别名替换不崩溃"""
-        from engines.workflow import resolve_node_aliases
-        wf = {
-            "_node_aliases": {"A": ["B"]},
-            "n1": {"class_type": "A"},
-            "n2": {"class_type": "A"},
-            "n3": {"class_type": "C"},
-        }
-        result = resolve_node_aliases(wf, {"B"})
-        assert result["n1"]["class_type"] == "B"
-        assert result["n2"]["class_type"] == "B"
-        assert result["n3"]["class_type"] == "C"  # 不匹配的不变
-
-    def test_no_aliases(self):
-        """无别名键时不报错"""
-        from engines.workflow import resolve_node_aliases
-        wf = {"1": {"class_type": "Foo"}}
-        result = resolve_node_aliases(wf, {"Foo"})
-        assert result["1"]["class_type"] == "Foo"
-
-    def test_empty_available_nodes(self):
-        """空 available_nodes 直接返回"""
-        from engines.workflow import resolve_node_aliases
-        wf = {"_node_aliases": {"Foo": ["Bar"]}, "1": {"class_type": "Foo"}}
-        result = resolve_node_aliases(wf, set())
-        assert result["1"]["class_type"] == "Foo"  # 未替换
-
-
-# ══════════════════════════════════════════════════════════
 #  5. infra/models.py 消除伪对象（4c33521）
 # ══════════════════════════════════════════════════════════
 

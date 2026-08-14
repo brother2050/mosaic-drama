@@ -18,16 +18,13 @@ logger = logging.getLogger(__name__)
 
 def _validate_lora_training(paths, char_id: str, force: bool) -> tuple[Path | None, str | None]:
     """校验 LoRA 训练前置条件 → (lora_path_or_None, error_or_None)"""
-    from infra.storage.asset_tracker import mosaic_asset_name
-
     char_yaml = paths.character_yaml(char_id)
     if not char_yaml.exists():
         return None, f"角色 {char_id} 不存在"
 
     # 检查已有 LoRA
     lora_dir = paths.loras_dir
-    lora_filename = mosaic_asset_name(str(paths.root), char_id, f"{char_id}_lora.safetensors")
-    for candidate in [lora_dir / lora_filename, lora_dir / f"{char_id}_lora.safetensors", lora_dir / f"{char_id}.safetensors"]:
+    for candidate in [lora_dir / f"{char_id}_lora.safetensors", lora_dir / f"{char_id}.safetensors"]:
         if candidate.exists() and not force:
             return candidate, None
 
@@ -67,10 +64,10 @@ def _resolve_trigger_word(char_yaml: Path, char_id: str) -> str:
 
 
 def _rename_lora_result(result_path: str, paths, char_id: str) -> str:
-    """重命名 LoRA 文件为 mosaic_asset_name 规范"""
-    from infra.storage.asset_tracker import mosaic_asset_name
+    """重命名 LoRA 文件为标准命名"""
     original_name = Path(result_path).name
-    new_name = mosaic_asset_name(str(paths.root), char_id, original_name)
+    suffix = Path(result_path).suffix or ".safetensors"
+    new_name = f"{char_id}_lora{suffix}"
     new_path = Path(result_path).parent / new_name
     if Path(result_path).exists() and not new_path.exists():
         os.replace(result_path, str(new_path))

@@ -445,7 +445,7 @@ def test_model_registry():
 
     assert "sd15" in reg.valid_image_backends()
     assert "animatediff" in reg.valid_video_backends()
-    assert reg.get_image_workflow("sd15") == "01_first_frame_sd15.json"
+    assert reg.get_prompt_style("sd15") == "tag"
     print("✅ 模型注册表正常")
 
 

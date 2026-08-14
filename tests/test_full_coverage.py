@@ -770,11 +770,12 @@ class TestModelRegistry:
         assert "flux" in img
 
     def test_registry_workflow(self):
-        """工作流映射"""
+        """后端参数映射（已移除工作流模板，改为直接参数构建）"""
         from infra.config.registry import ModelRegistry
         reg = ModelRegistry()
-        assert reg.get_image_workflow("cosmos") == "cosmos_predict2_2B_t2i.json"
-        assert reg.get_image_workflow("sd15") == "01_first_frame_sd15.json"
+        # 工作流 JSON 模板已移除，验证后端参数配置
+        assert reg.get_prompt_style("flux") == "natural"
+        assert reg.get_prompt_style("sd15") == "tag"
 
     def test_registry_consistency(self):
         """一致性方案"""
